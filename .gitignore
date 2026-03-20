@@ -1,8 +1,6 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
-/node_modules
-/.pnp
+# ── Dependencies ──────────────────────────────────────────────────────────────
+node_modules/
+.pnp
 .pnp.*
 .yarn/*
 !.yarn/patches
@@ -10,32 +8,53 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
+# ── Next.js ───────────────────────────────────────────────────────────────────
+my-app/.next/
+my-app/out/
+my-app/build/
 
-# next.js
-/.next/
-/out/
+# ── TypeScript ────────────────────────────────────────────────────────────────
+*.tsbuildinfo
+next-env.d.ts
 
-# production
-/build
+# ── Database ──────────────────────────────────────────────────────────────────
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
 
-# misc
-.DS_Store
+# ── Secrets & credentials — never commit ─────────────────────────────────────
+.env
+.env.*
+!.env.example
 *.pem
 
-# debug
+# ── Dev tooling artifacts ─────────────────────────────────────────────────────
+.playwright-cli/
+*.png
+*.pdf
+coverage/
+.vercel/
+
+# ── Python virtualenv ─────────────────────────────────────────────────────────
+.venv/
+__pycache__/
+*.pyc
+
+# ── Build temp ────────────────────────────────────────────────────────────────
+.npmrc-builds-tmp
+skills-lock.json
+-
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+
+# ── macOS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
-.env*
-
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
