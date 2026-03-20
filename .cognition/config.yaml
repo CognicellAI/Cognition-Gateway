@@ -1,0 +1,11 @@
+# Cognition ConfigRegistry bootstrap for dev environment
+# v0.4.0 format: seed_providers_from_config() reads llm.provider + llm.model + llm.region
+# Uses seed_if_absent semantics — config wins on first start, API rows win thereafter.
+
+llm:
+  provider: bedrock
+  model: us.anthropic.claude-sonnet-4-6
+  region: us-east-1
+  # Credentials read from: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN
+
+skills: []

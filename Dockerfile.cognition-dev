@@ -1,0 +1,15 @@
+# Dockerfile.cognition-dev - Extends Cognition image with dev config
+FROM ghcr.io/cognicellai/cognition:latest
+
+# Switch to root to set up permissions
+USER root
+
+# Create the .cognition directory and copy config
+RUN mkdir -p /app/.cognition
+COPY .cognition/config.yaml /app/.cognition/config.yaml
+
+# Ensure the cognition user can write to the directory
+RUN chown -R cognition:cognition /app/.cognition
+
+# Switch back to the cognition user
+USER cognition

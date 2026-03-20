@@ -1,0 +1,90 @@
+# docker-compose.dev.yml — Live integration testing
+#
+# Brings up Cognition + Gateway together for end-to-end smoke testing.
+# Uses a custom Cognition image (with dev config baked in) and builds Gateway locally.
+# Cognition runs with Bedrock (us.anthropic.claude-sonnet-4-6) and SQLite.
+#
+# Usage:
+#   docker compose -f docker-compose.dev.yml up --build -d
+#   docker compose -f docker-compose.dev.yml logs -f
+#   docker compose -f docker-compose.dev.yml down -v
+#
+# NOTE: Cognition v0.3.0+ uses Dynamic ConfigRegistry.
+# Provider/agent configuration is baked into the image via Dockerfile.cognition-dev.
+# Credentials still come from env vars (.env.dev).
+
+services:
+
+  cognition:
+    build:
+      context: .
+      dockerfile: Dockerfile.cognition-dev
+    container_name: dev-cognition-gateway
+    ports:
+      - "8002:8000"
+    environment:
+      COGNITION_HOST: "0.0.0.0"
+      COGNITION_PORT: "8000"
+      COGNITION_LOG_LEVEL: "info"
+      # AWS region for Bedrock SDK
+      AWS_DEFAULT_REGION: "us-east-1"
+      # SQLite persistence — no Postgres needed
+      COGNITION_PERSISTENCE_BACKEND: "sqlite"
+      # Scoping enabled — Gateway injects X-Cognition-Scope-User header
+      COGNITION_SCOPING_ENABLED: "true"
+      # Disable observability integrations not needed for dev
+      COGNITION_MLFLOW_ENABLED: "false"
+      COGNITION_OTEL_ENABLED: "false"
+    env_file:
+      # .env.dev contains AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_SESSION_TOKEN
+      # This file is gitignored — do not commit it.
+      - .env.dev
+    volumes:
+      # Persist Cognition state (SQLite) - directory is already writable
+      - cognition_data:/app/.cognition
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - dev-net
+
+  gateway:
+    build:
+      context: ./my-app
+      dockerfile: Dockerfile
+    container_name: dev-gateway-ui
+    ports:
+      - "3002:3000"
+    environment:
+      DATABASE_URL: "file:/data/gateway.db"
+      AUTH_SECRET: "dev-secret-for-testing-only"
+      NEXTAUTH_SECRET: "dev-secret-for-testing-only"
+      AUTH_TRUST_HOST: "true"
+      AUTH_URL: "http://localhost:3002"
+      REGISTRATION_ENABLED: "true"
+      # Points to the cognition service on the internal docker network
+      COGNITION_SERVER_URL: "http://cognition:8000"
+    volumes:
+      - gateway_data:/data
+    depends_on:
+      cognition:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/setup"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - dev-net
+
+networks:
+  dev-net:
+    driver: bridge
+
+volumes:
+  gateway_data:
+  cognition_data:
