@@ -1,0 +1,14 @@
+.git
+.gitignore
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+node_modules
+.next
+*.md
+Dockerfile*
+docker-compose*
+prisma/dev.db
+prisma/dev.db-shm
+prisma/dev.db-wal
