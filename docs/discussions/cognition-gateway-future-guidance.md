@@ -35,7 +35,8 @@ These principles define the long-term boundary between Cognition Gateway, Cognit
 3. **External platforms are contextual surfaces.** GitHub, Slack, Discord, Jira, and similar systems are where work is noticed, triggered, and observed, but not where deep agent governance lives.
 4. **Human-in-the-loop is a first-class product feature.** Users must be able to inspect reasoning, approve or reject runs, and continue the same session interactively.
 5. **Integrations must scale generically.** Gateway should support N+1 enterprise platforms through stable abstractions rather than one-off orchestration paths.
-6. **Adapters are infrastructure, not product identity.** A Chat SDK-like layer is valuable if it reduces platform complexity, but Gateway remains a supervision-first control plane.
+6. **Adapters are infrastructure, not product identity.** A future adoption of Vercel Chat SDK (`vercel/chat`) or a similar adapter layer is valuable if it reduces platform complexity, but Gateway remains a supervision-first control plane.
+7. **Governance decisions happen only in Gateway.** External systems may notify, trigger, and receive agent work, but approvals, prompt review, and deep supervision stay in Gateway.
 
 ---
 
@@ -43,14 +44,14 @@ These principles define the long-term boundary between Cognition Gateway, Cognit
 
 To support N+1 enterprise apps (GitHub, Slack, Jira, PagerDuty), we establish a generic **Integration Pattern**.
 
-This pattern assumes a near-term implementation where Gateway owns integration setup, inbound event handling, and outbound delivery. It also leaves room for a future internal **Chat SDK-like primitive** inside Gateway so that platform-specific thread, message, and formatting behavior can be normalized behind a shared adapter layer.
+This pattern assumes a near-term implementation where Gateway owns integration setup, inbound event handling, and outbound delivery. It also leaves room for a future internal adoption of **Vercel Chat SDK (`vercel/chat`)** or a similar adapter subsystem inside Gateway so that platform-specific thread, message, and formatting behavior can be normalized behind a shared layer.
 
 ### Core Principles
 
 1. **Gateway owns the integration surface.** Gateway handles authentication, receives webhooks, manages thread and event normalization, and injects short-lived credentials into the agent session. The agent uses its own tools/skills (e.g., `gh` CLI) to actually interact with the platform.
 2. **Layered filtering.** Gateway does cheap, coarse filtering (e.g., "only PR open events"). The agent does expensive, fine-grained filtering (e.g., "ignore PRs touching only markdown files").
 3. **Session continuity.** Multiple events concerning the same entity (e.g., three pushes to the same PR) must route to the *same* Cognition session so the agent retains context.
-4. **Gateway remains the supervision surface.** External systems are where work begins or is observed. Gateway is where humans inspect reasoning, approve runs, and steer the agent in depth.
+4. **Gateway remains the supervision surface.** External systems are where work begins, is observed, and may notify humans that action is needed. Gateway is where humans inspect reasoning, approve runs, and steer the agent in depth.
 
 ### Architecture
 
@@ -64,7 +65,7 @@ flowchart TD
     subgraph "Cognition Gateway"
         direction TB
         ING[Ingress: Webhook / Poll]
-        CHATSDK[Future: Chat SDK Primitive\nthread and event adapters]
+        CHATSDK[Future: Vercel Chat SDK\nadapter subsystem]
         RULE[DispatchRule: match event]
         APP[Approval Gate]
         CRED[Mint/Inject Credentials]
@@ -94,21 +95,21 @@ flowchart TD
 
 ---
 
-## 4. Gateway-Owned Chat SDK Primitive (Future Feature)
+## 4. Gateway-Owned Vercel Chat SDK Integration (Future Feature)
 
-As the number of enterprise integrations grows, Gateway will benefit from an internal primitive that plays the role of a **Chat SDK for enterprise systems**. This is a future feature, not a prerequisite for the dispatch architecture.
+As the number of enterprise integrations grows, Gateway may benefit from incorporating **Vercel Chat SDK (`vercel/chat`)** as an internal adapter subsystem. This is a future feature, not a prerequisite for the dispatch architecture.
 
-The purpose of this primitive is not to turn Gateway into a multi-channel assistant product. Its purpose is to reduce the cost of supporting N+1 enterprise platforms by normalizing inbound events, thread identity, outbound replies, and auth strategies behind a shared adapter layer.
+The purpose of this future integration is not to turn Gateway into a multi-channel assistant product. Its purpose is to reduce the cost of supporting N+1 enterprise platforms by normalizing inbound events, thread identity, outbound replies, formatting behavior, and auth strategies behind a shared adapter layer.
 
-### Why it belongs in Gateway
+### Why `vercel/chat` belongs in Gateway
 
 - It is primarily an **operator-facing integration surface**, not a pure runtime primitive.
 - It is tightly coupled to **dispatch rules, approvals, activity feed, and human supervision**.
 - It helps Gateway support external systems consistently without pushing product-facing integration complexity into Cognition core.
 
-### Responsibilities
+### What Gateway would use it for
 
-**The future Chat SDK primitive in Gateway should own:**
+**A future `vercel/chat` integration in Gateway should own:**
 - integration adapters for GitHub, Slack, Discord, Jira, and similar systems
 - normalized inbound event and thread models
 - outbound delivery and reply abstraction
@@ -122,6 +123,21 @@ The purpose of this primitive is not to turn Gateway into a multi-channel assist
 - audit policy
 - Cognition session lifecycle
 
+### Governance boundary
+
+If Gateway adopts `vercel/chat`, external platforms may:
+- trigger agent work
+- receive summaries and result updates
+- notify humans that approval is required
+- link back into Gateway
+
+External platforms should not:
+- become approval surfaces
+- allow prompt editing
+- replace the Gateway activity feed or approval queue
+
+This keeps `vercel/chat` in the role of an adapter subsystem rather than allowing it to redefine the product.
+
 ### Conceptual Model
 
 ```mermaid
@@ -134,7 +150,7 @@ flowchart TD
     end
 
     subgraph Gateway["Cognition Gateway"]
-        ADAPT[Future Chat SDK Primitive\nadapters, thread model,\noutbound delivery]
+        ADAPT[Future Vercel Chat SDK\nadapters, thread model,\noutbound delivery]
         RULES[Dispatch Rules]
         RUNS[Dispatch Runs]
         APPROVAL[Approval Queue]
@@ -170,6 +186,11 @@ If this future primitive is added, the user experience should remain:
 
 - **External platforms** are where work is noticed, triggered, and lightly nudged.
 - **Gateway** is where agent work is governed, inspected, approved, and deeply steered.
+
+When an approval is required, the preferred pattern is:
+- the external platform receives a short "approval required" notification
+- the notification links directly into the relevant Gateway approval screen
+- the approval decision itself is made only in Gateway
 
 That keeps Gateway aligned with its control-plane identity rather than drifting into an OpenClaw-style assistant that "lives" in every chat surface.
 
@@ -337,7 +358,7 @@ STATUS    TRIGGER        AGENT            STARTED       DURATION
 ```
 
 ### Integrations Page
-If the future Chat SDK primitive is added, the Integrations page becomes the setup and visibility layer for enterprise adapters.
+If a future `vercel/chat` integration is added, the Integrations page becomes the setup and visibility layer for enterprise adapters.
 
 ```text
 Integrations
@@ -413,6 +434,23 @@ ACTIONS
 [ Approve & Run ]  [ Reject ]
 ```
 
+### External Approval Notification
+External systems may notify humans that a run needs review, but they do not host the approval action itself.
+
+```text
+Slack / Discord / GitHub notification
+
+Agent run requires approval
+
+Source: GitHub PR #43
+Agent: security-agent
+Reason: files matched auth/**
+
+Action required: open Gateway to review prompt and approve.
+
+[ Open in Gateway ]
+```
+
 ---
 
 ## 7. Migration Path
@@ -448,9 +486,10 @@ This is designed to be shipped incrementally. There is no timeline pressure, and
 - Implement credential injection (passing the PAT or App token to the agent session).
 
 **PR 6: Future Chat SDK Primitive Inside Gateway**
-- Add a shared adapter layer for enterprise platforms.
+- Evaluate and, if appropriate, incorporate `vercel/chat` as a shared adapter layer for enterprise platforms.
 - Normalize thread, event, and outbound delivery semantics across integrations.
 - Move platform-specific formatting and reply behavior behind the adapter interface.
+- Add external "approval required" notifications that deep-link back into Gateway.
 - Keep `DispatchRule`, `DispatchRun`, approvals, and activity feed as the user-facing orchestration layer.
 
 ---
@@ -495,3 +534,9 @@ These stories define the target experience once the architecture is complete.
 
 8. **Shared Outbound Delivery Layer**
    > As a Gateway admin, I want agent results to be posted back to enterprise platforms through a common adapter layer, so that outbound delivery remains consistent as Gateway supports additional integrations.
+
+9. **Approval Required Notification**
+   > As a reviewer, I want to receive an external alert when an agent run needs approval, so that I know action is required without polling Gateway.
+
+10. **Gateway-Only Approval Decision**
+   > As a reviewer, I want external notifications to link directly to the relevant approval screen in Gateway, so that I can review the prompt and make the governance decision in the proper supervision surface.
