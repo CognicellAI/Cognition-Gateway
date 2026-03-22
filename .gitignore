@@ -31,6 +31,8 @@ next-env.d.ts
 
 # ── Dev tooling artifacts ─────────────────────────────────────────────────────
 .playwright-cli/
+.agents/
+.cognition/
 *.png
 *.pdf
 coverage/
