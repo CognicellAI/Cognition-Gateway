@@ -26,7 +26,20 @@ There are two distinct mental models for an AI agent platform:
 
 ---
 
-## 2. The Integration Pattern
+## 2. Architectural Principles
+
+These principles define the long-term boundary between Cognition Gateway, Cognition Server, and external enterprise systems.
+
+1. **Gateway is the control plane.** Its primary job is to decide when agents run, under what policies, with what human oversight.
+2. **Cognition is the execution substrate.** Its primary job is to run sessions, stream reasoning, and expose tools and skills to agents.
+3. **External platforms are contextual surfaces.** GitHub, Slack, Discord, Jira, and similar systems are where work is noticed, triggered, and observed, but not where deep agent governance lives.
+4. **Human-in-the-loop is a first-class product feature.** Users must be able to inspect reasoning, approve or reject runs, and continue the same session interactively.
+5. **Integrations must scale generically.** Gateway should support N+1 enterprise platforms through stable abstractions rather than one-off orchestration paths.
+6. **Adapters are infrastructure, not product identity.** A Chat SDK-like layer is valuable if it reduces platform complexity, but Gateway remains a supervision-first control plane.
+
+---
+
+## 3. The Integration Pattern
 
 To support N+1 enterprise apps (GitHub, Slack, Jira, PagerDuty), we establish a generic **Integration Pattern**.
 
@@ -81,7 +94,7 @@ flowchart TD
 
 ---
 
-## 3. Gateway-Owned Chat SDK Primitive (Future Feature)
+## 4. Gateway-Owned Chat SDK Primitive (Future Feature)
 
 As the number of enterprise integrations grows, Gateway will benefit from an internal primitive that plays the role of a **Chat SDK for enterprise systems**. This is a future feature, not a prerequisite for the dispatch architecture.
 
@@ -162,7 +175,7 @@ That keeps Gateway aligned with its control-plane identity rather than drifting 
 
 ---
 
-## 4. The Unified Dispatch Engine
+## 5. The Unified Dispatch Engine
 
 Currently, cron jobs and webhooks have duplicate execution logic (`cron.ts` and `webhooks.ts`) and separate database models (`CronJobRun` vs `WebhookInvocation`).
 
