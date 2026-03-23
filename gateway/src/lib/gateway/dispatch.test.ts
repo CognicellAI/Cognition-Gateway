@@ -3,6 +3,8 @@ import {
   consumeCognitionStream,
   createCognitionSession,
   sendCognitionMessage,
+  buildDispatchCallbackUrl,
+  parseCallbackOutcome,
   reserveContextMapping,
   upsertContextMapping,
   clearContextMapping,
@@ -137,5 +139,23 @@ describe("dispatch helpers", () => {
     });
     await clearContextMapping(db, "ctx-2");
     await expect(findContextMapping(db, "ctx-2")).resolves.toBeUndefined();
+  });
+
+  it("builds callback urls and parses callback outcomes", () => {
+    const callbackUrl = buildDispatchCallbackUrl("http://localhost:3002", "token-1");
+    expect(callbackUrl).toBe("http://localhost:3002/api/internal/dispatch/callback?token=token-1");
+
+    expect(
+      parseCallbackOutcome({
+        session_id: "session-1",
+        assistant_data: { content: "done" },
+        usage: { input_tokens: 5, output_tokens: 7 },
+      })
+    ).toEqual({
+      sessionId: "session-1",
+      output: "done",
+      tokenUsage: 12,
+      error: undefined,
+    });
   });
 });

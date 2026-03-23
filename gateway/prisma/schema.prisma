@@ -107,6 +107,8 @@ model DispatchRun {
   tokenUsage        Int?
   error             String?
   metadata          String?
+  callbackToken     String?
+  callbackUrl       String?
   contextKey        String?
   approvalRequired  Boolean   @default(false)
   approvalReason    String?
@@ -121,6 +123,7 @@ model DispatchRun {
   @@index([status])
   @@index([sessionId])
   @@index([contextKey])
+  @@index([callbackToken])
 }
 
 model ContextMapping {

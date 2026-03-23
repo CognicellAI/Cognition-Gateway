@@ -18,12 +18,14 @@ export interface DispatchSessionRequest {
   title: string;
   agentName: string;
   scopeUserId?: string;
+  callbackUrl?: string;
 }
 
 export interface DispatchMessageRequest {
   sessionId: string;
   content: string;
   scopeUserId?: string;
+  callbackUrl?: string;
 }
 
 function buildScopedHeaders(
@@ -41,6 +43,7 @@ function buildScopedHeaders(
 
 export interface DispatchExecutionResult extends DispatchStreamResult {
   sessionId: string;
+  callbackToken?: string;
 }
 
 export interface DispatchRunSeed {
@@ -51,6 +54,8 @@ export interface DispatchRunSeed {
   contextKey?: string;
   approvalRequired?: boolean;
   approvalReason?: string;
+  callbackToken?: string;
+  callbackUrl?: string | null;
   metadata?: Record<string, unknown>;
   cronJobId?: string;
   webhookId?: string;
@@ -67,11 +72,28 @@ export interface DispatchRunSuccessUpdate {
   sessionId: string;
   output: string;
   tokenUsage: number;
+  finishedAt?: Date;
 }
 
 export interface DispatchRunErrorUpdate {
   sessionId?: string;
   error: string;
+  finishedAt?: Date;
+}
+
+export interface DispatchCallbackPayload {
+  session_id?: string;
+  message_id?: string;
+  assistant_data?: {
+    content?: string;
+    token_count?: number;
+    metadata?: Record<string, unknown> | null;
+  };
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+  };
+  error?: string;
 }
 
 /**
@@ -162,6 +184,7 @@ export async function createCognitionSession(
     body: JSON.stringify({
       title: request.title,
       agent_name: request.agentName,
+      ...(request.callbackUrl ? { callback_url: request.callbackUrl } : {}),
     }),
   });
 
@@ -242,6 +265,8 @@ export async function createDispatchRun(
       contextKey: seed.contextKey,
       approvalRequired: seed.approvalRequired ?? false,
       approvalReason: seed.approvalReason,
+      callbackToken: seed.callbackToken,
+      callbackUrl: seed.callbackUrl,
       metadata: seed.metadata ? JSON.stringify(seed.metadata) : undefined,
       cronJobId: seed.cronJobId,
       webhookId: seed.webhookId,
@@ -367,7 +392,7 @@ export async function markDispatchRunSuccess(
       sessionId: result.sessionId,
       output: result.output,
       tokenUsage: result.tokenUsage,
-      finishedAt: new Date(),
+      finishedAt: result.finishedAt ?? new Date(),
     },
   });
 }
@@ -383,7 +408,7 @@ export async function markDispatchRunError(
       status: "error",
       sessionId: result.sessionId,
       error: result.error,
-      finishedAt: new Date(),
+      finishedAt: result.finishedAt ?? new Date(),
     },
   });
 }
@@ -399,4 +424,29 @@ export async function markDispatchRunRunning(
       finishedAt: null,
     },
   });
+}
+
+export function generateCallbackToken(): string {
+  return crypto.randomUUID();
+}
+
+export function buildDispatchCallbackUrl(baseUrl: string, token: string): string {
+  const url = new URL("/api/internal/dispatch/callback", baseUrl);
+  url.searchParams.set("token", token);
+  return url.toString();
+}
+
+export function parseCallbackOutcome(payload: DispatchCallbackPayload): {
+  sessionId?: string;
+  output: string;
+  tokenUsage: number;
+  error?: string;
+} {
+  const usage = payload.usage;
+  return {
+    sessionId: payload.session_id,
+    output: payload.assistant_data?.content ?? "",
+    tokenUsage: (usage?.input_tokens ?? 0) + (usage?.output_tokens ?? 0),
+    error: payload.error,
+  };
 }

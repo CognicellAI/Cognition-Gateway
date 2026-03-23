@@ -9,10 +9,12 @@
 
 import { Cron } from "croner";
 import {
+  buildDispatchCallbackUrl,
   createDispatchRun,
   executeDispatch,
   executeDispatchInSession,
   findMappedSessionId,
+  generateCallbackToken,
   markDispatchRunError,
   markDispatchRunSuccess,
   type DispatchContext,
@@ -42,6 +44,8 @@ async function runCronJob(
   const approvalRequired = job.approvalMode === "always";
 
   const dispatchRun = await createDispatchRun(db, {
+    callbackToken: generateCallbackToken(),
+    callbackUrl: null,
     sourceType: "cron",
     sourceId: job.id,
     contextKey,
@@ -82,16 +86,31 @@ async function runCronJob(
   }
 
   try {
+    const callbackBaseUrl = process.env.GATEWAY_PUBLIC_URL ?? process.env.AUTH_URL ?? "http://localhost:3002";
+    const dispatchRunRecord = await db.dispatchRun.findUnique({
+      where: { id: dispatchRun.id },
+      select: { callbackToken: true },
+    });
+    const callbackUrl = buildDispatchCallbackUrl(callbackBaseUrl, dispatchRunRecord?.callbackToken ?? "");
+
+    await db.dispatchRun.update({
+      where: { id: dispatchRun.id },
+      data: { callbackUrl },
+    });
+
     const dispatchResult = existingSessionId
       ? await executeDispatchInSession(serverUrl, {
           sessionId: existingSessionId,
           content: job.prompt,
+          callbackUrl,
         })
       : await executeDispatch(
           serverUrl,
           {
             title: `Cron: ${job.name}`,
             agentName: job.agentName,
+            scopeUserId: ctx.scopeUserId,
+            callbackUrl,
           },
           job.prompt,
         );

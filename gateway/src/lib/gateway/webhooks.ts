@@ -9,12 +9,14 @@
 
 import { createHmac, timingSafeEqual } from "crypto";
 import {
+  buildDispatchCallbackUrl,
   createDispatchRun,
   createCognitionSession,
   clearContextMapping,
   executeDispatch,
   executeDispatchInSession,
   findContextMapping,
+  generateCallbackToken,
   markDispatchRunError,
   markDispatchRunSuccess,
   reserveContextMapping,
@@ -148,6 +150,7 @@ export async function handleWebhookInvocation(
   }
 
   const dispatchRun = await createDispatchRun(db, {
+    callbackToken: generateCallbackToken(),
     sourceType: "webhook",
     sourceId: webhook.id,
     status: "running",
@@ -188,6 +191,20 @@ async function processWebhookInBackground(
   const existingMapping = await findContextMapping(db, contextKey);
 
   try {
+    const callbackBaseUrl = process.env.GATEWAY_PUBLIC_URL ?? process.env.AUTH_URL ?? "http://localhost:3002";
+    const runRecord = await db.dispatchRun.findUnique({
+      where: { id: dispatchRunId },
+      select: { callbackToken: true },
+    });
+    const callbackUrl = runRecord?.callbackToken
+      ? buildDispatchCallbackUrl(callbackBaseUrl, runRecord.callbackToken)
+      : undefined;
+
+    await db.dispatchRun.update({
+      where: { id: dispatchRunId },
+      data: { callbackUrl: callbackUrl ?? null },
+    });
+
     const prompt = renderPromptTemplate(webhook.promptTemplate, body);
     const approvalRequired = webhook.approvalMode === "always";
     await db.dispatchRun.update({
@@ -235,6 +252,7 @@ async function processWebhookInBackground(
           sessionId: sessionId ?? existingMapping?.sessionId ?? "",
           content: prompt,
           scopeUserId: ctx.scopeUserId,
+          callbackUrl,
         })
       : await executeDispatch(
           serverUrl,
@@ -242,6 +260,7 @@ async function processWebhookInBackground(
             title: `Webhook: ${webhook.name}`,
             agentName: webhook.agentName,
             scopeUserId: ctx.scopeUserId,
+            callbackUrl,
           },
           prompt,
         );
