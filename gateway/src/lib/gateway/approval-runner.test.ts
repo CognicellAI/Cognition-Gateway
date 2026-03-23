@@ -49,6 +49,7 @@ describe("approval runner", () => {
       sessionId: "session-1",
       output: "done",
       tokenUsage: 10,
+      doneReceived: true,
     });
 
     await executeApprovedDispatchRun("run-1", {

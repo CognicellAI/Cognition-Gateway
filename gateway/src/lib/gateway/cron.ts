@@ -11,8 +11,11 @@ import { Cron } from "croner";
 import {
   buildDispatchCallbackUrl,
   createDispatchRun,
+  type DispatchExecutionResult,
   executeDispatch,
   executeDispatchInSession,
+  enqueueDispatch,
+  enqueueDispatchInSession,
   findMappedSessionId,
   generateCallbackToken,
   markDispatchRunError,
@@ -99,23 +102,43 @@ async function runCronJob(
     });
 
     const dispatchResult = existingSessionId
-      ? await executeDispatchInSession(serverUrl, {
-          sessionId: existingSessionId,
-          content: job.prompt,
-          callbackUrl,
-        })
-      : await executeDispatch(
-          serverUrl,
-          {
-            title: `Cron: ${job.name}`,
-            agentName: job.agentName,
-            scopeUserId: ctx.scopeUserId,
+      ? callbackUrl
+        ? await enqueueDispatchInSession(serverUrl, {
+            sessionId: existingSessionId,
+            content: job.prompt,
             callbackUrl,
-          },
-          job.prompt,
-        );
+          })
+        : await executeDispatchInSession(serverUrl, {
+            sessionId: existingSessionId,
+            content: job.prompt,
+            callbackUrl,
+          })
+      : callbackUrl
+        ? await enqueueDispatch(
+            serverUrl,
+            {
+              title: `Cron: ${job.name}`,
+              agentName: job.agentName,
+              scopeUserId: ctx.scopeUserId,
+              callbackUrl,
+            },
+            job.prompt,
+          )
+        : await executeDispatch(
+            serverUrl,
+            {
+              title: `Cron: ${job.name}`,
+              agentName: job.agentName,
+              scopeUserId: ctx.scopeUserId,
+              callbackUrl,
+            },
+            job.prompt,
+          );
 
     sessionId = dispatchResult.sessionId;
+    const syncDispatchResult = ("output" in dispatchResult && "tokenUsage" in dispatchResult)
+      ? (dispatchResult as DispatchExecutionResult)
+      : null;
 
     if (contextKey) {
       await upsertContextMapping(db, {
@@ -129,13 +152,15 @@ async function runCronJob(
       });
     }
 
-    await markDispatchRunSuccess(db, dispatchRun.id, {
-      sessionId,
-      output: dispatchResult.output,
-      tokenUsage: dispatchResult.tokenUsage,
-    });
+    if (!callbackUrl) {
+      await markDispatchRunSuccess(db, dispatchRun.id, {
+        sessionId,
+        output: syncDispatchResult?.output ?? "",
+        tokenUsage: syncDispatchResult?.tokenUsage ?? 0,
+      });
+    }
 
-    if (job.deliveryMode === "webhook" && job.deliveryTarget) {
+    if (!callbackUrl && job.deliveryMode === "webhook" && job.deliveryTarget) {
       await fetch(job.deliveryTarget, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -144,8 +169,8 @@ async function runCronJob(
           cronJobName: job.name,
           runId: dispatchRun.id,
           sessionId,
-          output: dispatchResult.output,
-          tokenUsage: dispatchResult.tokenUsage,
+          output: syncDispatchResult?.output ?? "",
+          tokenUsage: syncDispatchResult?.tokenUsage ?? 0,
           status: "success",
         }),
       }).catch((err: unknown) => {
@@ -158,9 +183,9 @@ async function runCronJob(
       cronJobId: job.id,
       cronJobName: job.name,
       runId: dispatchRun.id,
-      status: "success",
+      status: callbackUrl ? "running" : "success",
       sessionId,
-      output: dispatchResult.output,
+      ...(callbackUrl ? { callbackUrl } : { output: syncDispatchResult?.output ?? "" }),
     });
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);

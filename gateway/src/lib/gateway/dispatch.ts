@@ -12,6 +12,7 @@ export interface DispatchContext {
 export interface DispatchStreamResult {
   output: string;
   tokenUsage: number;
+  doneReceived: boolean;
 }
 
 export interface DispatchSessionRequest {
@@ -44,6 +45,10 @@ function buildScopedHeaders(
 export interface DispatchExecutionResult extends DispatchStreamResult {
   sessionId: string;
   callbackToken?: string;
+}
+
+export interface DispatchEnqueueResult {
+  sessionId: string;
 }
 
 export interface DispatchRunSeed {
@@ -103,13 +108,14 @@ export interface DispatchCallbackPayload {
 export async function consumeCognitionStream(response: Response): Promise<DispatchStreamResult> {
   const reader = response.body?.getReader();
   if (!reader) {
-    return { output: "", tokenUsage: 0 };
+    return { output: "", tokenUsage: 0, doneReceived: false };
   }
 
   const decoder = new TextDecoder();
   let buffer = "";
   let output = "";
   let tokenUsage = 0;
+  let doneReceived = false;
   let currentEventName = "";
 
   while (true) {
@@ -152,6 +158,7 @@ export async function consumeCognitionStream(response: Response): Promise<Dispat
           typeof payload.event === "string" ? payload.event : currentEventName;
 
         if (eventName === "done" && payload.data?.assistant_data?.content) {
+          doneReceived = true;
           output = payload.data.assistant_data.content;
         }
 
@@ -161,6 +168,7 @@ export async function consumeCognitionStream(response: Response): Promise<Dispat
         }
 
         if (!output && eventName === "done" && typeof payload.assistant_data?.content === "string") {
+          doneReceived = true;
           output = payload.assistant_data.content;
         }
       } catch {
@@ -169,7 +177,7 @@ export async function consumeCognitionStream(response: Response): Promise<Dispat
     }
   }
 
-  return { output, tokenUsage };
+  return { output, tokenUsage, doneReceived };
 }
 
 export async function createCognitionSession(
@@ -208,7 +216,10 @@ export async function sendCognitionMessage(
       "Content-Type": "application/json",
       Accept: "text/event-stream",
     }),
-    body: JSON.stringify({ content: request.content }),
+    body: JSON.stringify({
+      content: request.content,
+      ...(request.callbackUrl ? { callback_url: request.callbackUrl } : {}),
+    }),
   });
 
   if (!messageResponse.ok) {
@@ -236,6 +247,7 @@ export async function executeDispatch(
     sessionId,
     output: streamResult.output,
     tokenUsage: streamResult.tokenUsage,
+    doneReceived: streamResult.doneReceived,
   };
 }
 
@@ -249,7 +261,48 @@ export async function executeDispatchInSession(
     sessionId: request.sessionId,
     output: streamResult.output,
     tokenUsage: streamResult.tokenUsage,
+    doneReceived: streamResult.doneReceived,
   };
+}
+
+export async function enqueueDispatchInSession(
+  serverUrl: string,
+  request: DispatchMessageRequest,
+): Promise<DispatchEnqueueResult> {
+  const response = await fetch(`${serverUrl}/sessions/${request.sessionId}/messages`, {
+    method: "POST",
+    headers: buildScopedHeaders(request.scopeUserId, {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    }),
+    body: JSON.stringify({
+      content: request.content,
+      ...(request.callbackUrl ? { callback_url: request.callbackUrl } : {}),
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to enqueue message: ${response.status} ${await response.text()}`,
+    );
+  }
+
+  return { sessionId: request.sessionId };
+}
+
+export async function enqueueDispatch(
+  serverUrl: string,
+  sessionRequest: DispatchSessionRequest,
+  messageContent: string,
+): Promise<DispatchEnqueueResult> {
+  const sessionId = await createCognitionSession(serverUrl, sessionRequest);
+  await enqueueDispatchInSession(serverUrl, {
+    sessionId,
+    content: messageContent,
+    scopeUserId: sessionRequest.scopeUserId,
+    callbackUrl: sessionRequest.callbackUrl,
+  });
+  return { sessionId };
 }
 
 export async function createDispatchRun(

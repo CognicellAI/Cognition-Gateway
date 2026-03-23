@@ -15,6 +15,8 @@ import {
   clearContextMapping,
   executeDispatch,
   executeDispatchInSession,
+  enqueueDispatch,
+  enqueueDispatchInSession,
   findContextMapping,
   generateCallbackToken,
   markDispatchRunError,
@@ -248,24 +250,41 @@ async function processWebhookInBackground(
     }
 
     const dispatchResult = sessionId || existingMapping?.sessionId
-      ? await executeDispatchInSession(serverUrl, {
-          sessionId: sessionId ?? existingMapping?.sessionId ?? "",
-          content: prompt,
-          scopeUserId: ctx.scopeUserId,
-          callbackUrl,
-        })
-      : await executeDispatch(
-          serverUrl,
-          {
-            title: `Webhook: ${webhook.name}`,
-            agentName: webhook.agentName,
+      ? callbackUrl
+        ? await enqueueDispatchInSession(serverUrl, {
+            sessionId: sessionId ?? existingMapping?.sessionId ?? "",
+            content: prompt,
             scopeUserId: ctx.scopeUserId,
             callbackUrl,
-          },
-          prompt,
-        );
+          })
+        : await executeDispatchInSession(serverUrl, {
+            sessionId: sessionId ?? existingMapping?.sessionId ?? "",
+            content: prompt,
+            scopeUserId: ctx.scopeUserId,
+            callbackUrl,
+          })
+      : callbackUrl
+        ? await enqueueDispatch(
+            serverUrl,
+            {
+              title: `Webhook: ${webhook.name}`,
+              agentName: webhook.agentName,
+              scopeUserId: ctx.scopeUserId,
+              callbackUrl,
+            },
+            prompt,
+          )
+        : await executeDispatch(
+            serverUrl,
+            {
+              title: `Webhook: ${webhook.name}`,
+              agentName: webhook.agentName,
+              scopeUserId: ctx.scopeUserId,
+              callbackUrl,
+            },
+            prompt,
+          );
     sessionId = dispatchResult.sessionId;
-    const { output, tokenUsage } = dispatchResult;
 
     if (contextKey) {
       await upsertContextMapping(db, {
@@ -279,21 +298,14 @@ async function processWebhookInBackground(
       });
     }
 
-    await markDispatchRunSuccess(db, dispatchRunId, {
-      sessionId,
-      output,
-      tokenUsage,
-    });
-
     broadcast({
       type: "webhook.invoked",
       webhookId: webhook.id,
       webhookName: webhook.name,
       invocationId: dispatchRunId,
-      status: "success",
+      status: callbackUrl ? "running" : "success",
       sessionId,
-      output,
-      tokenUsage,
+      ...(callbackUrl ? { callbackUrl } : {}),
     });
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
