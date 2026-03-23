@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-10
 **Updated:** 2026-03-20
-**Status:** Approved — reflects current implementation through Phase 6
+**Status:** Historical implementation design — see `docs/discussions/cognition-gateway-future-guidance.md` for the current accepted architecture direction
 
 ## Purpose
 
@@ -67,7 +67,7 @@ Everything under `src/lib/gateway/` is pure Node.js with no React or browser API
 
 ```
 cognition-ui/                        # Repo root
-├── my-app/                          # Next.js application
+├── gateway/                         # Next.js application
 │   ├── server.ts                    # Custom Node.js server (cron, WS, Next.js handler)
 │   ├── prisma.config.ts             # Prisma 7 config (driver adapter)
 │   ├── prisma/schema.prisma         # DB schema
@@ -269,7 +269,7 @@ External services POST to `/api/hooks/{path}`. Path is exempt from auth middlewa
 ```
 docker-compose.dev.yml:
   dev-cognition-gateway  → ghcr.io/cognicellai/cognition:latest  :8002
-  dev-gateway-ui         → built from ./my-app/Dockerfile          :3002
+  dev-gateway-ui         → built from ./gateway/Dockerfile         :3002
 ```
 
 Cognition provider is bootstrapped from `.cognition/config.yaml` (v0.4.0 `llm:` format) via `seed_if_absent` on startup. AWS credentials injected from `.env.dev` (gitignored).
@@ -294,6 +294,10 @@ Live Task Canvas, Artifact Shelf, session home screen, inline error surfacing, s
 ### Phase 6: Dynamic Config (Cognition v0.3.0–v0.4.0) ✅
 Skills CRUD, Agent Builder, Provider Manager (with live test), Model Catalog (3,800+ models, search/filter), per-session model picker. Pending: real-time config updates.
 
+
+## Note On Current Direction
+
+This document remains useful as a snapshot of the implemented system shape through the earlier phase-based roadmap, but it is no longer the primary architecture guide for future work. The accepted forward-looking architecture now lives in `docs/discussions/cognition-gateway-future-guidance.md`, especially for unified dispatch, governance-first UX, approvals, integrations, and session continuity.
 
 ## Purpose
 

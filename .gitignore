@@ -9,9 +9,9 @@ node_modules/
 !.yarn/versions
 
 # ── Next.js ───────────────────────────────────────────────────────────────────
-my-app/.next/
-my-app/out/
-my-app/build/
+gateway/.next/
+gateway/out/
+gateway/build/
 
 # ── TypeScript ────────────────────────────────────────────────────────────────
 *.tsbuildinfo

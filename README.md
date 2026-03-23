@@ -62,7 +62,7 @@ docker compose -f docker-compose.dev.yml logs -f
 ### Local Development (without Docker)
 
 ```bash
-cd my-app
+cd gateway
 pnpm install
 pnpm db:push        # Create SQLite database
 pnpm dev:server     # Custom server (cron + WebSocket + Next.js)
