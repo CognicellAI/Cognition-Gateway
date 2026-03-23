@@ -26,6 +26,9 @@ services:
       COGNITION_HOST: "0.0.0.0"
       COGNITION_PORT: "8000"
       COGNITION_LOG_LEVEL: "info"
+      COGNITION_LLM_PROVIDER: "${COGNITION_LLM_PROVIDER}"
+      COGNITION_OPENAI_COMPATIBLE_BASE_URL: "${COGNITION_OPENAI_COMPATIBLE_BASE_URL}"
+      COGNITION_OPENAI_COMPATIBLE_API_KEY: "${COGNITION_OPENAI_COMPATIBLE_API_KEY}"
       # AWS region for Bedrock SDK
       AWS_DEFAULT_REGION: "us-east-1"
       # SQLite persistence — no Postgres needed
@@ -64,6 +67,8 @@ services:
       NEXTAUTH_SECRET: "dev-secret-for-testing-only"
       AUTH_TRUST_HOST: "true"
       AUTH_URL: "http://localhost:3002"
+      GATEWAY_PUBLIC_URL: "http://localhost:3002"
+      GATEWAY_INTERNAL_URL: "http://gateway:3000"
       REGISTRATION_ENABLED: "true"
       # Points to the cognition service on the internal docker network
       COGNITION_SERVER_URL: "http://cognition:8000"

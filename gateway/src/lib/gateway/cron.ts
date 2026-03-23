@@ -9,10 +9,15 @@
 
 import { Cron } from "croner";
 import {
+  buildDispatchCallbackUrl,
   createDispatchRun,
+  type DispatchExecutionResult,
   executeDispatch,
   executeDispatchInSession,
+  enqueueDispatch,
+  enqueueDispatchInSession,
   findMappedSessionId,
+  generateCallbackToken,
   markDispatchRunError,
   markDispatchRunSuccess,
   type DispatchContext,
@@ -42,6 +47,8 @@ async function runCronJob(
   const approvalRequired = job.approvalMode === "always";
 
   const dispatchRun = await createDispatchRun(db, {
+    callbackToken: generateCallbackToken(),
+    callbackUrl: null,
     sourceType: "cron",
     sourceId: job.id,
     contextKey,
@@ -82,21 +89,57 @@ async function runCronJob(
   }
 
   try {
+    const callbackBaseUrl =
+      process.env.GATEWAY_INTERNAL_URL ?? process.env.GATEWAY_PUBLIC_URL ?? process.env.AUTH_URL ?? "http://localhost:3002";
+    const dispatchRunRecord = await db.dispatchRun.findUnique({
+      where: { id: dispatchRun.id },
+      select: { callbackToken: true },
+    });
+    const callbackUrl = buildDispatchCallbackUrl(callbackBaseUrl, dispatchRunRecord?.callbackToken ?? "");
+
+    await db.dispatchRun.update({
+      where: { id: dispatchRun.id },
+      data: { callbackUrl },
+    });
+
     const dispatchResult = existingSessionId
-      ? await executeDispatchInSession(serverUrl, {
-          sessionId: existingSessionId,
-          content: job.prompt,
-        })
-      : await executeDispatch(
-          serverUrl,
-          {
-            title: `Cron: ${job.name}`,
-            agentName: job.agentName,
-          },
-          job.prompt,
-        );
+      ? callbackUrl
+        ? await enqueueDispatchInSession(serverUrl, {
+            sessionId: existingSessionId,
+            content: job.prompt,
+            callbackUrl,
+          })
+        : await executeDispatchInSession(serverUrl, {
+            sessionId: existingSessionId,
+            content: job.prompt,
+            callbackUrl,
+          })
+      : callbackUrl
+        ? await enqueueDispatch(
+            serverUrl,
+            {
+              title: `Cron: ${job.name}`,
+              agentName: job.agentName,
+              scopeUserId: ctx.scopeUserId,
+              callbackUrl,
+            },
+            job.prompt,
+          )
+        : await executeDispatch(
+            serverUrl,
+            {
+              title: `Cron: ${job.name}`,
+              agentName: job.agentName,
+              scopeUserId: ctx.scopeUserId,
+              callbackUrl,
+            },
+            job.prompt,
+          );
 
     sessionId = dispatchResult.sessionId;
+    const syncDispatchResult = ("output" in dispatchResult && "tokenUsage" in dispatchResult)
+      ? (dispatchResult as DispatchExecutionResult)
+      : null;
 
     if (contextKey) {
       await upsertContextMapping(db, {
@@ -110,13 +153,15 @@ async function runCronJob(
       });
     }
 
-    await markDispatchRunSuccess(db, dispatchRun.id, {
-      sessionId,
-      output: dispatchResult.output,
-      tokenUsage: dispatchResult.tokenUsage,
-    });
+    if (!callbackUrl) {
+      await markDispatchRunSuccess(db, dispatchRun.id, {
+        sessionId,
+        output: syncDispatchResult?.output ?? "",
+        tokenUsage: syncDispatchResult?.tokenUsage ?? 0,
+      });
+    }
 
-    if (job.deliveryMode === "webhook" && job.deliveryTarget) {
+    if (!callbackUrl && job.deliveryMode === "webhook" && job.deliveryTarget) {
       await fetch(job.deliveryTarget, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -125,8 +170,8 @@ async function runCronJob(
           cronJobName: job.name,
           runId: dispatchRun.id,
           sessionId,
-          output: dispatchResult.output,
-          tokenUsage: dispatchResult.tokenUsage,
+          output: syncDispatchResult?.output ?? "",
+          tokenUsage: syncDispatchResult?.tokenUsage ?? 0,
           status: "success",
         }),
       }).catch((err: unknown) => {
@@ -139,9 +184,9 @@ async function runCronJob(
       cronJobId: job.id,
       cronJobName: job.name,
       runId: dispatchRun.id,
-      status: "success",
+      status: callbackUrl ? "running" : "success",
       sessionId,
-      output: dispatchResult.output,
+      ...(callbackUrl ? { callbackUrl } : { output: syncDispatchResult?.output ?? "" }),
     });
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);

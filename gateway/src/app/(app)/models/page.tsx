@@ -23,6 +23,7 @@ const CAPABILITY_LABELS: Record<string, string> = {
 const PROVIDER_FILTERS = [
   { value: "", label: "All providers" },
   { value: "bedrock", label: "Bedrock" },
+  { value: "openai_compatible", label: "OpenAI-compatible" },
   { value: "openai", label: "OpenAI" },
   { value: "anthropic", label: "Anthropic" },
   { value: "google_genai", label: "Google" },
@@ -54,7 +55,9 @@ export default function ModelsPage() {
     setLoading(true);
     setError(null);
     const params = new URLSearchParams();
-    if (providerFilter) params.set("provider", providerFilter);
+    if (providerFilter && providerFilter !== "openai_compatible") {
+      params.set("provider", providerFilter);
+    }
     if (toolCallOnly) params.set("tool_call", "true");
     if (search.trim()) params.set("q", search.trim());
 
@@ -92,6 +95,11 @@ export default function ModelsPage() {
         <p className="text-muted-foreground mt-1">
           Model catalog powered by <a href="https://models.dev" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-foreground">models.dev</a>
         </p>
+        {providerFilter === "openai_compatible" && (
+          <p className="text-xs text-muted-foreground mt-2 max-w-3xl">
+            OpenAI-compatible is a runtime adapter category, not a single catalog provider. This view shows the broader catalog while your configured runtime can still target an OpenAI-compatible backend such as OpenRouter.
+          </p>
+        )}
       </div>
 
       {/* Filters */}

@@ -3,6 +3,9 @@ import {
   consumeCognitionStream,
   createCognitionSession,
   sendCognitionMessage,
+  enqueueDispatchInSession,
+  buildDispatchCallbackUrl,
+  parseCallbackOutcome,
   reserveContextMapping,
   upsertContextMapping,
   clearContextMapping,
@@ -42,6 +45,7 @@ describe("dispatch helpers", () => {
     expect(result).toEqual({
       output: "Final answer",
       tokenUsage: 42,
+      doneReceived: true,
     });
   });
 
@@ -84,6 +88,30 @@ describe("dispatch helpers", () => {
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     const headers = new Headers(init.headers);
     expect(headers.get("x-cognition-scope-user")).toBe("gateway-automation");
+  });
+
+  it("enqueues async dispatch with callback_url without waiting for SSE", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    await enqueueDispatchInSession("http://cognition", {
+      sessionId: "session-1",
+      content: "hello",
+      scopeUserId: "gateway-automation",
+      callbackUrl: "http://gateway/callback?token=abc",
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = new Headers(init.headers);
+    expect(headers.get("accept")).toBe("application/json");
+    expect(JSON.parse(String(init.body))).toEqual({
+      content: "hello",
+      callback_url: "http://gateway/callback?token=abc",
+    });
   });
 
   it("reserves, finalizes, and clears context mappings", async () => {
@@ -137,5 +165,23 @@ describe("dispatch helpers", () => {
     });
     await clearContextMapping(db, "ctx-2");
     await expect(findContextMapping(db, "ctx-2")).resolves.toBeUndefined();
+  });
+
+  it("builds callback urls and parses callback outcomes", () => {
+    const callbackUrl = buildDispatchCallbackUrl("http://localhost:3002", "token-1");
+    expect(callbackUrl).toBe("http://localhost:3002/api/internal/dispatch/callback?token=token-1");
+
+    expect(
+      parseCallbackOutcome({
+        session_id: "session-1",
+        assistant_data: { content: "done" },
+        usage: { input_tokens: 5, output_tokens: 7 },
+      })
+    ).toEqual({
+      sessionId: "session-1",
+      output: "done",
+      tokenUsage: 12,
+      error: undefined,
+    });
   });
 });

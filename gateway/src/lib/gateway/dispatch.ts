@@ -12,18 +12,21 @@ export interface DispatchContext {
 export interface DispatchStreamResult {
   output: string;
   tokenUsage: number;
+  doneReceived: boolean;
 }
 
 export interface DispatchSessionRequest {
   title: string;
   agentName: string;
   scopeUserId?: string;
+  callbackUrl?: string;
 }
 
 export interface DispatchMessageRequest {
   sessionId: string;
   content: string;
   scopeUserId?: string;
+  callbackUrl?: string;
 }
 
 function buildScopedHeaders(
@@ -41,6 +44,11 @@ function buildScopedHeaders(
 
 export interface DispatchExecutionResult extends DispatchStreamResult {
   sessionId: string;
+  callbackToken?: string;
+}
+
+export interface DispatchEnqueueResult {
+  sessionId: string;
 }
 
 export interface DispatchRunSeed {
@@ -51,6 +59,8 @@ export interface DispatchRunSeed {
   contextKey?: string;
   approvalRequired?: boolean;
   approvalReason?: string;
+  callbackToken?: string;
+  callbackUrl?: string | null;
   metadata?: Record<string, unknown>;
   cronJobId?: string;
   webhookId?: string;
@@ -67,11 +77,28 @@ export interface DispatchRunSuccessUpdate {
   sessionId: string;
   output: string;
   tokenUsage: number;
+  finishedAt?: Date;
 }
 
 export interface DispatchRunErrorUpdate {
   sessionId?: string;
   error: string;
+  finishedAt?: Date;
+}
+
+export interface DispatchCallbackPayload {
+  session_id?: string;
+  message_id?: string;
+  assistant_data?: {
+    content?: string;
+    token_count?: number;
+    metadata?: Record<string, unknown> | null;
+  };
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+  };
+  error?: string;
 }
 
 /**
@@ -81,13 +108,14 @@ export interface DispatchRunErrorUpdate {
 export async function consumeCognitionStream(response: Response): Promise<DispatchStreamResult> {
   const reader = response.body?.getReader();
   if (!reader) {
-    return { output: "", tokenUsage: 0 };
+    return { output: "", tokenUsage: 0, doneReceived: false };
   }
 
   const decoder = new TextDecoder();
   let buffer = "";
   let output = "";
   let tokenUsage = 0;
+  let doneReceived = false;
   let currentEventName = "";
 
   while (true) {
@@ -130,6 +158,7 @@ export async function consumeCognitionStream(response: Response): Promise<Dispat
           typeof payload.event === "string" ? payload.event : currentEventName;
 
         if (eventName === "done" && payload.data?.assistant_data?.content) {
+          doneReceived = true;
           output = payload.data.assistant_data.content;
         }
 
@@ -139,6 +168,7 @@ export async function consumeCognitionStream(response: Response): Promise<Dispat
         }
 
         if (!output && eventName === "done" && typeof payload.assistant_data?.content === "string") {
+          doneReceived = true;
           output = payload.assistant_data.content;
         }
       } catch {
@@ -147,7 +177,7 @@ export async function consumeCognitionStream(response: Response): Promise<Dispat
     }
   }
 
-  return { output, tokenUsage };
+  return { output, tokenUsage, doneReceived };
 }
 
 export async function createCognitionSession(
@@ -162,6 +192,7 @@ export async function createCognitionSession(
     body: JSON.stringify({
       title: request.title,
       agent_name: request.agentName,
+      ...(request.callbackUrl ? { callback_url: request.callbackUrl } : {}),
     }),
   });
 
@@ -185,7 +216,10 @@ export async function sendCognitionMessage(
       "Content-Type": "application/json",
       Accept: "text/event-stream",
     }),
-    body: JSON.stringify({ content: request.content }),
+    body: JSON.stringify({
+      content: request.content,
+      ...(request.callbackUrl ? { callback_url: request.callbackUrl } : {}),
+    }),
   });
 
   if (!messageResponse.ok) {
@@ -213,6 +247,7 @@ export async function executeDispatch(
     sessionId,
     output: streamResult.output,
     tokenUsage: streamResult.tokenUsage,
+    doneReceived: streamResult.doneReceived,
   };
 }
 
@@ -226,7 +261,48 @@ export async function executeDispatchInSession(
     sessionId: request.sessionId,
     output: streamResult.output,
     tokenUsage: streamResult.tokenUsage,
+    doneReceived: streamResult.doneReceived,
   };
+}
+
+export async function enqueueDispatchInSession(
+  serverUrl: string,
+  request: DispatchMessageRequest,
+): Promise<DispatchEnqueueResult> {
+  const response = await fetch(`${serverUrl}/sessions/${request.sessionId}/messages`, {
+    method: "POST",
+    headers: buildScopedHeaders(request.scopeUserId, {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    }),
+    body: JSON.stringify({
+      content: request.content,
+      ...(request.callbackUrl ? { callback_url: request.callbackUrl } : {}),
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to enqueue message: ${response.status} ${await response.text()}`,
+    );
+  }
+
+  return { sessionId: request.sessionId };
+}
+
+export async function enqueueDispatch(
+  serverUrl: string,
+  sessionRequest: DispatchSessionRequest,
+  messageContent: string,
+): Promise<DispatchEnqueueResult> {
+  const sessionId = await createCognitionSession(serverUrl, sessionRequest);
+  await enqueueDispatchInSession(serverUrl, {
+    sessionId,
+    content: messageContent,
+    scopeUserId: sessionRequest.scopeUserId,
+    callbackUrl: sessionRequest.callbackUrl,
+  });
+  return { sessionId };
 }
 
 export async function createDispatchRun(
@@ -242,6 +318,8 @@ export async function createDispatchRun(
       contextKey: seed.contextKey,
       approvalRequired: seed.approvalRequired ?? false,
       approvalReason: seed.approvalReason,
+      callbackToken: seed.callbackToken,
+      callbackUrl: seed.callbackUrl,
       metadata: seed.metadata ? JSON.stringify(seed.metadata) : undefined,
       cronJobId: seed.cronJobId,
       webhookId: seed.webhookId,
@@ -367,7 +445,7 @@ export async function markDispatchRunSuccess(
       sessionId: result.sessionId,
       output: result.output,
       tokenUsage: result.tokenUsage,
-      finishedAt: new Date(),
+      finishedAt: result.finishedAt ?? new Date(),
     },
   });
 }
@@ -383,7 +461,7 @@ export async function markDispatchRunError(
       status: "error",
       sessionId: result.sessionId,
       error: result.error,
-      finishedAt: new Date(),
+      finishedAt: result.finishedAt ?? new Date(),
     },
   });
 }
@@ -399,4 +477,29 @@ export async function markDispatchRunRunning(
       finishedAt: null,
     },
   });
+}
+
+export function generateCallbackToken(): string {
+  return crypto.randomUUID();
+}
+
+export function buildDispatchCallbackUrl(baseUrl: string, token: string): string {
+  const url = new URL("/api/internal/dispatch/callback", baseUrl);
+  url.searchParams.set("token", token);
+  return url.toString();
+}
+
+export function parseCallbackOutcome(payload: DispatchCallbackPayload): {
+  sessionId?: string;
+  output: string;
+  tokenUsage: number;
+  error?: string;
+} {
+  const usage = payload.usage;
+  return {
+    sessionId: payload.session_id,
+    output: payload.assistant_data?.content ?? "",
+    tokenUsage: (usage?.input_tokens ?? 0) + (usage?.output_tokens ?? 0),
+    error: payload.error,
+  };
 }
