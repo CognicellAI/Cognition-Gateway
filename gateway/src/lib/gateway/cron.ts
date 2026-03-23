@@ -89,7 +89,8 @@ async function runCronJob(
   }
 
   try {
-    const callbackBaseUrl = process.env.GATEWAY_PUBLIC_URL ?? process.env.AUTH_URL ?? "http://localhost:3002";
+    const callbackBaseUrl =
+      process.env.GATEWAY_INTERNAL_URL ?? process.env.GATEWAY_PUBLIC_URL ?? process.env.AUTH_URL ?? "http://localhost:3002";
     const dispatchRunRecord = await db.dispatchRun.findUnique({
       where: { id: dispatchRun.id },
       select: { callbackToken: true },

@@ -67,6 +67,8 @@ services:
       NEXTAUTH_SECRET: "dev-secret-for-testing-only"
       AUTH_TRUST_HOST: "true"
       AUTH_URL: "http://localhost:3002"
+      GATEWAY_PUBLIC_URL: "http://localhost:3002"
+      GATEWAY_INTERNAL_URL: "http://gateway:3000"
       REGISTRATION_ENABLED: "true"
       # Points to the cognition service on the internal docker network
       COGNITION_SERVER_URL: "http://cognition:8000"

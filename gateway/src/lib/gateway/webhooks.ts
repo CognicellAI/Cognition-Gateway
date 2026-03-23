@@ -193,7 +193,8 @@ async function processWebhookInBackground(
   const existingMapping = await findContextMapping(db, contextKey);
 
   try {
-    const callbackBaseUrl = process.env.GATEWAY_PUBLIC_URL ?? process.env.AUTH_URL ?? "http://localhost:3002";
+    const callbackBaseUrl =
+      process.env.GATEWAY_INTERNAL_URL ?? process.env.GATEWAY_PUBLIC_URL ?? process.env.AUTH_URL ?? "http://localhost:3002";
     const runRecord = await db.dispatchRun.findUnique({
       where: { id: dispatchRunId },
       select: { callbackToken: true },
