@@ -1,0 +1,164 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  passwordHash  String?
+  role          String   @default("user")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  preferences   String   @default("{}")
+  serverUrl     String   @default("http://localhost:8000")
+  
+  accounts      Account[]
+  sessions      Session[]
+  apiKeys       ApiKey[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Singleton row (id = "default") for gateway-wide admin settings
+model GatewaySettings {
+  id                   String  @id @default("default")
+  registrationEnabled  Boolean @default(true)
+  updatedAt            DateTime @updatedAt
+}
+
+// ── Phase 3: Automation ─────────────────────────────────────────────────────
+
+model CronJob {
+  id             String       @id @default(cuid())
+  name           String
+  schedule       String       // cron expression e.g. "0 9 * * 1"
+  agentName      String
+  prompt         String
+  sessionMode    String       @default("ephemeral") // "ephemeral" | "persistent"
+  deliveryMode   String       @default("none")      // "none" | "webhook"
+  deliveryTarget String?      // URL for webhook delivery
+  approvalMode   String       @default("none")      // "none" | "always"
+  enabled        Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  dispatchRuns   DispatchRun[]
+}
+
+model Webhook {
+  id             String              @id @default(cuid())
+  name           String
+  path           String              @unique // e.g. "my-webhook" → POST /api/hooks/my-webhook
+  secret         String?             // HMAC secret for signature validation
+  agentName      String
+  promptTemplate String              // Handlebars-like template with {{body}} placeholder
+  sessionMode    String              @default("ephemeral")
+  approvalMode   String              @default("none")
+  enabled        Boolean             @default(true)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  dispatchRuns   DispatchRun[]
+}
+
+model DispatchRun {
+  id                String    @id @default(cuid())
+  sourceType        String
+  sourceId          String
+  status            String
+  sessionId         String?
+  renderedPrompt    String?
+  output            String?
+  tokenUsage        Int?
+  error             String?
+  metadata          String?
+  contextKey        String?
+  approvalRequired  Boolean   @default(false)
+  approvalReason    String?
+  startedAt         DateTime  @default(now())
+  finishedAt        DateTime?
+  cronJobId         String?
+  webhookId         String?
+  cronJob           CronJob?  @relation(fields: [cronJobId], references: [id], onDelete: Cascade)
+  webhook           Webhook?  @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([sourceType, sourceId])
+  @@index([status])
+  @@index([sessionId])
+  @@index([contextKey])
+}
+
+model ContextMapping {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  sourceType  String
+  sourceId    String?
+  sessionId   String
+  status      String   @default("ready")
+  metadata    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([sourceType, sourceId])
+  @@index([sessionId])
+}
+
+// ── Phase 4: Enterprise Polish ───────────────────────────────────────────────
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  userId      String
+  name        String                        // human label e.g. "CI pipeline"
+  keyHash     String    @unique             // bcrypt hash of the full key
+  keyPrefix   String                        // first 8 chars shown in UI e.g. "cgw_a1b2"
+  expiresAt   DateTime?                     // null = never expires
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?                        // null for unauthenticated / API key actions
+  userEmail  String?                        // denormalized for display after user deletion
+  action     String                         // e.g. "session.create", "config.patch"
+  resource   String?                        // e.g. session ID, cron job ID
+  details    String?                        // JSON string with extra context
+  ip         String?
+  createdAt  DateTime @default(now())
+}

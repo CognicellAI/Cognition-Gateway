@@ -53,7 +53,7 @@ services:
 
   gateway:
     build:
-      context: ./my-app
+      context: ./gateway
       dockerfile: Dockerfile
     container_name: dev-gateway-ui
     ports:

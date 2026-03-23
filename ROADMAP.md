@@ -1,6 +1,8 @@
 # Cognition Gateway Roadmap
 
-This roadmap tracks the path toward a self-hosted web interface for any Cognition server.
+This roadmap tracks the path toward a self-hosted control plane for any Cognition server.
+
+`docs/discussions/cognition-gateway-future-guidance.md` is the accepted architectural source of truth for product direction, governance boundaries, and the dispatch/integration model. This roadmap remains the implementation tracker and should be interpreted through that architecture.
 
 All work is categorized by type: Security Fixes, Bug Fixes, Performance Improvements, Dependency Updates, and Features (Phase 1--4).
 
@@ -9,6 +11,14 @@ All work is categorized by type: Security Fixes, Bug Fixes, Performance Improvem
 ## Work Categories
 
 See AGENTS.md for category definitions, DoD requirements, and precedence rules.
+
+## Architecture Alignment
+
+- Gateway is the governance and supervision surface for agent work.
+- Cognition is the execution substrate for sessions, streaming, tools, and resume behavior.
+- External systems are trigger and delivery surfaces, not approval surfaces.
+- The current implementation roadmap now converges toward a unified dispatch architecture built around shared execution, `DispatchRun`, `ContextMapping`, approvals, activity feed, and integrations.
+- Existing phase-based items remain valid delivery history, but new architectural work should align with the migration path captured in `docs/discussions/cognition-gateway-future-guidance.md` and the linked GitHub issues.
 
 ---
 
