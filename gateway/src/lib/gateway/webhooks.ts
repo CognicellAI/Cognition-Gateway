@@ -50,6 +50,34 @@ export function renderPromptTemplate(
   return result;
 }
 
+function getNestedValue(body: unknown, path: string): unknown {
+  if (!path) return undefined;
+  const parts = path.split(".");
+  let current: unknown = body;
+  for (const part of parts) {
+    if (typeof current !== "object" || current === null) {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[part];
+  }
+  return current;
+}
+
+export function renderDispatchRuleTemplate(template: string, body: unknown): string {
+  return template.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (_match, rawPath: string) => {
+    const path = rawPath.trim();
+    if (path === "body") {
+      return JSON.stringify(body, null, 2);
+    }
+
+    const value = getNestedValue(body, path);
+    if (value === undefined || value === null) {
+      return "";
+    }
+    return typeof value === "string" ? value : JSON.stringify(value);
+  });
+}
+
 function extractContextKey(body: unknown): string | undefined {
   if (typeof body !== "object" || body === null) {
     return undefined;
@@ -89,6 +117,32 @@ function extractContextKey(body: unknown): string | undefined {
   }
 
   return undefined;
+}
+
+function matchesDispatchRule(
+  rule: { eventType: string; actionFilter: string | null },
+  body: unknown,
+): boolean {
+  if (typeof body !== "object" || body === null) {
+    return false;
+  }
+
+  const record = body as Record<string, unknown>;
+  const eventType = typeof record.eventType === "string"
+    ? record.eventType
+    : typeof record.event_name === "string"
+      ? record.event_name
+      : undefined;
+
+  if (eventType !== rule.eventType) {
+    return false;
+  }
+
+  if (!rule.actionFilter) {
+    return true;
+  }
+
+  return record.action === rule.actionFilter;
 }
 
 /**
@@ -145,6 +199,19 @@ export async function handleWebhookInvocation(
     return { httpStatus: 404, message: "Webhook not found" };
   }
 
+  const matchedRule = webhook.integrationType === "github"
+    ? await db.dispatchRule.findFirst({
+        where: {
+          integrationType: "github",
+          enabled: true,
+        },
+        orderBy: { createdAt: "asc" },
+      }).then((rule) => {
+        if (!rule) return null;
+        return matchesDispatchRule(rule, body) ? rule : null;
+      })
+    : null;
+
   // HMAC validation if secret is set
   if (webhook.secret) {
     if (!validateSignature(webhook.secret, rawBody, signatureHeader)) {
@@ -159,12 +226,13 @@ export async function handleWebhookInvocation(
     status: "running",
       metadata: {
         webhookName: webhook.name,
-        title: `Webhook: ${webhook.name}`,
-        agentName: webhook.agentName,
+        title: matchedRule ? `GitHub: ${matchedRule.name}` : `Webhook: ${webhook.name}`,
+        agentName: matchedRule?.agentName ?? webhook.agentName,
         sessionMode: webhook.sessionMode,
         approvalMode: webhook.approvalMode,
         sourceIp,
         scopeUserId: ctx.scopeUserId,
+        ...(matchedRule ? { dispatchRuleId: matchedRule.id, integrationType: matchedRule.integrationType } : {}),
       },
       webhookId: webhook.id,
   });
@@ -177,7 +245,7 @@ export async function handleWebhookInvocation(
   });
 
   // Run asynchronously — don't block the HTTP response
-  void processWebhookInBackground(webhook, dispatchRun.id, body, ctx);
+  void processWebhookInBackground(webhook, dispatchRun.id, body, ctx, matchedRule);
 
   return { httpStatus: 202, message: "Accepted" };
 }
@@ -187,10 +255,12 @@ async function processWebhookInBackground(
   dispatchRunId: string,
   body: unknown,
   ctx: DispatchContext,
+  dispatchRule: { id: string; name: string; integrationType: string; eventType: string; actionFilter: string | null; agentName: string; promptTemplate: string; contextKeyTemplate: string | null; approvalMode: string } | null,
 ): Promise<void> {
   const { db, serverUrl, broadcast } = ctx;
   let sessionId: string | undefined;
   const contextKey = webhook.sessionMode === "persistent" ? extractContextKey(body) : undefined;
+  let effectiveContextKey = contextKey;
   const existingMapping = await findContextMapping(db, contextKey);
   const metadataLookup = contextKey
     ? {
@@ -216,13 +286,19 @@ async function processWebhookInBackground(
       data: { callbackUrl: callbackUrl ?? null },
     });
 
-    const prompt = renderPromptTemplate(webhook.promptTemplate, body);
-    const approvalRequired = webhook.approvalMode === "always";
+    const prompt = dispatchRule
+      ? renderDispatchRuleTemplate(dispatchRule.promptTemplate, body)
+      : renderPromptTemplate(webhook.promptTemplate, body);
+    const derivedContextKey = dispatchRule?.contextKeyTemplate
+      ? renderDispatchRuleTemplate(dispatchRule.contextKeyTemplate, body)
+      : contextKey;
+    effectiveContextKey = derivedContextKey || contextKey;
+    const approvalRequired = (dispatchRule?.approvalMode ?? webhook.approvalMode) === "always";
     await db.dispatchRun.update({
       where: { id: dispatchRunId },
       data: {
         renderedPrompt: prompt,
-        contextKey,
+        contextKey: effectiveContextKey,
         status: approvalRequired ? "awaiting_approval" : "running",
         approvalRequired,
         approvalReason: approvalRequired ? "Webhook requires approval before execution" : null,
@@ -240,34 +316,50 @@ async function processWebhookInBackground(
       return;
     }
 
-    if (!existingMapping && contextKey) {
-      const reconciledSessionId = await findSessionIdByMetadata(serverUrl, metadataLookup!, ctx.scopeUserId);
+    if (!existingMapping && effectiveContextKey) {
+      const reconciledSessionId = await findSessionIdByMetadata(serverUrl, {
+        sourceType: "webhook",
+        sourceId: webhook.id,
+        contextKey: effectiveContextKey,
+      }, ctx.scopeUserId);
       if (reconciledSessionId) {
         sessionId = reconciledSessionId;
         await reserveContextMapping(db, {
-          key: contextKey,
+          key: effectiveContextKey,
           sourceType: "webhook",
           sourceId: webhook.id,
           sessionId,
-          metadata: metadataLookup,
+          metadata: {
+            ...(metadataLookup ?? {}),
+            ...(dispatchRule ? { dispatchRuleId: dispatchRule.id } : {}),
+            contextKey: effectiveContextKey,
+          },
         });
       }
     }
 
-    if (!existingMapping && contextKey && !sessionId) {
+    if (!existingMapping && effectiveContextKey && !sessionId) {
       sessionId = await createCognitionSession(serverUrl, {
-        title: `Webhook: ${webhook.name}`,
-        agentName: webhook.agentName,
+        title: dispatchRule ? `GitHub: ${dispatchRule.name}` : `Webhook: ${webhook.name}`,
+        agentName: dispatchRule?.agentName ?? webhook.agentName,
         scopeUserId: ctx.scopeUserId,
-        metadata: metadataLookup,
+        metadata: {
+          ...(metadataLookup ?? {}),
+          ...(dispatchRule ? { dispatchRuleId: dispatchRule.id } : {}),
+          contextKey: effectiveContextKey,
+        },
       });
 
       await reserveContextMapping(db, {
-        key: contextKey,
+        key: effectiveContextKey,
         sourceType: "webhook",
         sourceId: webhook.id,
         sessionId,
-        metadata: metadataLookup,
+        metadata: {
+          ...(metadataLookup ?? {}),
+          ...(dispatchRule ? { dispatchRuleId: dispatchRule.id } : {}),
+          contextKey: effectiveContextKey,
+        },
       });
     }
 
@@ -289,8 +381,8 @@ async function processWebhookInBackground(
         ? await enqueueDispatch(
             serverUrl,
             {
-              title: `Webhook: ${webhook.name}`,
-              agentName: webhook.agentName,
+              title: dispatchRule ? `GitHub: ${dispatchRule.name}` : `Webhook: ${webhook.name}`,
+              agentName: dispatchRule?.agentName ?? webhook.agentName,
               scopeUserId: ctx.scopeUserId,
               callbackUrl,
             },
@@ -299,8 +391,8 @@ async function processWebhookInBackground(
         : await executeDispatch(
             serverUrl,
             {
-              title: `Webhook: ${webhook.name}`,
-              agentName: webhook.agentName,
+              title: dispatchRule ? `GitHub: ${dispatchRule.name}` : `Webhook: ${webhook.name}`,
+              agentName: dispatchRule?.agentName ?? webhook.agentName,
               scopeUserId: ctx.scopeUserId,
               callbackUrl,
             },
@@ -308,13 +400,17 @@ async function processWebhookInBackground(
           );
     sessionId = dispatchResult.sessionId;
 
-    if (contextKey) {
+    if (effectiveContextKey) {
       await upsertContextMapping(db, {
-        key: contextKey,
+        key: effectiveContextKey,
         sourceType: "webhook",
         sourceId: webhook.id,
         sessionId,
-        metadata: metadataLookup,
+        metadata: {
+          ...(metadataLookup ?? {}),
+          ...(dispatchRule ? { dispatchRuleId: dispatchRule.id } : {}),
+          contextKey: effectiveContextKey,
+        },
       });
     }
 
@@ -331,8 +427,8 @@ async function processWebhookInBackground(
     const error = err instanceof Error ? err.message : String(err);
     console.error(`[webhooks] Invocation ${dispatchRunId} failed:`, error);
 
-    if (contextKey && !existingMapping?.sessionId && sessionId) {
-      await clearContextMapping(db, contextKey);
+    if (effectiveContextKey && !existingMapping?.sessionId && sessionId) {
+      await clearContextMapping(db, effectiveContextKey);
     }
 
     if (dispatchRunId) {

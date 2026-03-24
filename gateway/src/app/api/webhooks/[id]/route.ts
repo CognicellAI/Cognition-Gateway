@@ -21,6 +21,8 @@ const patchSchema = z.object({
   promptTemplate: z.string().min(1).optional(),
   sessionMode: z.enum(["ephemeral", "persistent"]).optional(),
   approvalMode: z.enum(["none", "always"]).optional(),
+  integrationType: z.enum(["github"]).optional().nullable(),
+  eventType: z.string().min(1).optional().nullable(),
   enabled: z.boolean().optional(),
 });
 
