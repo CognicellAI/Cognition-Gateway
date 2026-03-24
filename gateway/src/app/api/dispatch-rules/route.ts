@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth/config";
 import { db } from "@/lib/db/client";
+import { audit, getIp } from "@/lib/gateway/audit";
 
 const createSchema = z.object({
   name: z.string().min(1).max(100),
@@ -41,5 +42,19 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   const rule = await db.dispatchRule.create({ data: parsed.data });
+
+  await audit({
+    userId: session.user.id,
+    userEmail: session.user.email ?? undefined,
+    action: "dispatch_rule.create",
+    resource: rule.id,
+    details: {
+      integrationType: rule.integrationType,
+      eventType: rule.eventType,
+      actionFilter: rule.actionFilter,
+    },
+    ip: getIp(request),
+  });
+
   return NextResponse.json({ rule }, { status: 201 });
 }

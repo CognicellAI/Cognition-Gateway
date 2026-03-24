@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderDispatchRuleTemplate } from "@/lib/gateway/webhooks";
+import { renderDispatchRuleTemplate, renderPromptTemplate } from "@/lib/gateway/webhooks";
 
 describe("dispatch rule template rendering", () => {
   it("renders nested values from GitHub-style payloads", () => {
@@ -17,6 +17,16 @@ describe("dispatch rule template rendering", () => {
     expect(prompt).toContain("Repo acme/repo");
     expect(prompt).toContain("PR #42");
     expect(prompt).toContain("Add feature");
+    expect(prompt).toContain('"action": "opened"');
+  });
+
+  it("keeps legacy webhook template behavior for top-level fields", () => {
+    const prompt = renderPromptTemplate("User {{user}} body {{body}}", {
+      user: "alice",
+      action: "opened",
+    });
+
+    expect(prompt).toContain("User alice");
     expect(prompt).toContain('"action": "opened"');
   });
 });

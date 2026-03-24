@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { GithubIcon, WorkflowIcon } from "lucide-react";
 
 interface DispatchRule {
   id: string;
@@ -92,6 +93,38 @@ export default function IntegrationsPage() {
           <p className="mt-1 text-muted-foreground">Define dispatch rules for GitHub events using the unified automation pipeline.</p>
         </div>
         <Button onClick={() => setDialogOpen(true)}>New dispatch rule</Button>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <GithubIcon className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-base">GitHub events</CardTitle>
+            </div>
+            <CardDescription>
+              Model pull request and issue workflows as first-class dispatch rules instead of one-off webhook prompts.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            Start by defining an event type, optional action filter, agent, prompt template, and context key template.
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <WorkflowIcon className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-base">Execution model</CardTitle>
+            </div>
+            <CardDescription>
+              Matching rules reuse the same dispatch pipeline as cron and webhooks, including approvals, activity, and session continuity.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            Rules currently route GitHub-style webhook payloads through shared prompt and context rendering. Integration auth and richer event normalization come next.
+          </CardContent>
+        </Card>
       </div>
 
       {error && (
