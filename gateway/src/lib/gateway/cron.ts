@@ -17,6 +17,7 @@ import {
   enqueueDispatch,
   enqueueDispatchInSession,
   findMappedSessionId,
+  findSessionIdByMetadata,
   generateCallbackToken,
   markDispatchRunError,
   markDispatchRunSuccess,
@@ -45,6 +46,13 @@ async function runCronJob(
   const contextKey = job.sessionMode === "persistent" ? `cron:${job.id}` : undefined;
   const existingSessionId = await findMappedSessionId(db, contextKey);
   const approvalRequired = job.approvalMode === "always";
+  const metadataLookup = contextKey
+    ? {
+        sourceType: "cron",
+        sourceId: job.id,
+        contextKey,
+      }
+    : undefined;
 
   const dispatchRun = await createDispatchRun(db, {
     callbackToken: generateCallbackToken(),
@@ -102,15 +110,19 @@ async function runCronJob(
       data: { callbackUrl },
     });
 
-    const dispatchResult = existingSessionId
+    const reconciledSessionId = !existingSessionId && metadataLookup
+      ? await findSessionIdByMetadata(serverUrl, metadataLookup, ctx.scopeUserId)
+      : existingSessionId;
+
+    const dispatchResult = reconciledSessionId
       ? callbackUrl
         ? await enqueueDispatchInSession(serverUrl, {
-            sessionId: existingSessionId,
+            sessionId: reconciledSessionId,
             content: job.prompt,
             callbackUrl,
           })
         : await executeDispatchInSession(serverUrl, {
-            sessionId: existingSessionId,
+            sessionId: reconciledSessionId,
             content: job.prompt,
             callbackUrl,
           })
@@ -122,6 +134,7 @@ async function runCronJob(
               agentName: job.agentName,
               scopeUserId: ctx.scopeUserId,
               callbackUrl,
+              metadata: metadataLookup,
             },
             job.prompt,
           )
@@ -132,6 +145,7 @@ async function runCronJob(
               agentName: job.agentName,
               scopeUserId: ctx.scopeUserId,
               callbackUrl,
+              metadata: metadataLookup,
             },
             job.prompt,
           );
@@ -147,9 +161,7 @@ async function runCronJob(
         sourceType: "cron",
         sourceId: job.id,
         sessionId,
-        metadata: {
-          cronJobName: job.name,
-        },
+        metadata: metadataLookup,
       });
     }
 

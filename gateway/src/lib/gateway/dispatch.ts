@@ -20,6 +20,7 @@ export interface DispatchSessionRequest {
   agentName: string;
   scopeUserId?: string;
   callbackUrl?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface DispatchMessageRequest {
@@ -193,6 +194,7 @@ export async function createCognitionSession(
       title: request.title,
       agent_name: request.agentName,
       ...(request.callbackUrl ? { callback_url: request.callbackUrl } : {}),
+      ...(request.metadata ? { metadata: request.metadata } : {}),
     }),
   });
 
@@ -487,6 +489,34 @@ export function buildDispatchCallbackUrl(baseUrl: string, token: string): string
   const url = new URL("/api/internal/dispatch/callback", baseUrl);
   url.searchParams.set("token", token);
   return url.toString();
+}
+
+export async function findSessionIdByMetadata(
+  serverUrl: string,
+  metadata: Record<string, string>,
+  scopeUserId?: string,
+): Promise<string | undefined> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(metadata)) {
+    params.set(`metadata.${key}`, value);
+  }
+
+  const response = await fetch(`${serverUrl}/sessions?${params.toString()}`, {
+    method: "GET",
+    headers: buildScopedHeaders(scopeUserId),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to look up sessions by metadata: ${response.status} ${await response.text()}`);
+  }
+
+  const payload = (await response.json()) as {
+    sessions?: Array<{ id: string }>;
+    items?: Array<{ id: string }>;
+  };
+
+  const sessions = payload.sessions ?? payload.items ?? [];
+  return sessions[0]?.id;
 }
 
 export function parseCallbackOutcome(payload: DispatchCallbackPayload): {

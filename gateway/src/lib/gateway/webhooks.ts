@@ -18,6 +18,7 @@ import {
   enqueueDispatch,
   enqueueDispatchInSession,
   findContextMapping,
+  findSessionIdByMetadata,
   generateCallbackToken,
   markDispatchRunError,
   markDispatchRunSuccess,
@@ -191,6 +192,13 @@ async function processWebhookInBackground(
   let sessionId: string | undefined;
   const contextKey = webhook.sessionMode === "persistent" ? extractContextKey(body) : undefined;
   const existingMapping = await findContextMapping(db, contextKey);
+  const metadataLookup = contextKey
+    ? {
+        sourceType: "webhook",
+        sourceId: webhook.id,
+        contextKey,
+      }
+    : undefined;
 
   try {
     const callbackBaseUrl =
@@ -233,10 +241,25 @@ async function processWebhookInBackground(
     }
 
     if (!existingMapping && contextKey) {
+      const reconciledSessionId = await findSessionIdByMetadata(serverUrl, metadataLookup!, ctx.scopeUserId);
+      if (reconciledSessionId) {
+        sessionId = reconciledSessionId;
+        await reserveContextMapping(db, {
+          key: contextKey,
+          sourceType: "webhook",
+          sourceId: webhook.id,
+          sessionId,
+          metadata: metadataLookup,
+        });
+      }
+    }
+
+    if (!existingMapping && contextKey && !sessionId) {
       sessionId = await createCognitionSession(serverUrl, {
         title: `Webhook: ${webhook.name}`,
         agentName: webhook.agentName,
         scopeUserId: ctx.scopeUserId,
+        metadata: metadataLookup,
       });
 
       await reserveContextMapping(db, {
@@ -244,9 +267,7 @@ async function processWebhookInBackground(
         sourceType: "webhook",
         sourceId: webhook.id,
         sessionId,
-        metadata: {
-          webhookName: webhook.name,
-        },
+        metadata: metadataLookup,
       });
     }
 
@@ -293,9 +314,7 @@ async function processWebhookInBackground(
         sourceType: "webhook",
         sourceId: webhook.id,
         sessionId,
-        metadata: {
-          webhookName: webhook.name,
-        },
+        metadata: metadataLookup,
       });
     }
 
