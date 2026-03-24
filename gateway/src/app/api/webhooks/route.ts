@@ -21,6 +21,8 @@ const createSchema = z.object({
   promptTemplate: z.string().min(1),
   sessionMode: z.enum(["ephemeral", "persistent"]).default("ephemeral"),
   approvalMode: z.enum(["none", "always"]).default("none"),
+  integrationType: z.enum(["github"]).optional(),
+  eventType: z.string().min(1).optional(),
   enabled: z.boolean().default(true),
 });
 

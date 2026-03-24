@@ -91,9 +91,26 @@ model Webhook {
   sessionMode    String              @default("ephemeral")
   approvalMode   String              @default("none")
   enabled        Boolean             @default(true)
+  integrationType String?            // e.g. github
+  eventType      String?             // e.g. pull_request
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
   dispatchRuns   DispatchRun[]
+}
+
+model DispatchRule {
+  id                String   @id @default(cuid())
+  name              String
+  integrationType   String   // e.g. github
+  eventType         String   // e.g. pull_request
+  actionFilter      String?  // e.g. opened, synchronize
+  agentName         String
+  promptTemplate    String
+  contextKeyTemplate String?
+  approvalMode      String   @default("none")
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 model DispatchRun {
