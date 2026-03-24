@@ -9,19 +9,14 @@
 
 import { createHmac, timingSafeEqual } from "crypto";
 import {
-  buildDispatchCallbackUrl,
   createDispatchRun,
   createCognitionSession,
   clearContextMapping,
   executeDispatch,
   executeDispatchInSession,
-  enqueueDispatch,
-  enqueueDispatchInSession,
   findContextMapping,
   findSessionIdByMetadata,
-  generateCallbackToken,
   markDispatchRunError,
-  markDispatchRunRunning,
   markDispatchRunSuccess,
   reserveContextMapping,
   type DispatchContext,
@@ -333,7 +328,6 @@ export async function handleWebhookInvocation(
   }
 
   const dispatchRun = await createDispatchRun(db, {
-    callbackToken: generateCallbackToken(),
     sourceType: "webhook",
     sourceId: webhook.id,
     status: "running",
@@ -389,20 +383,7 @@ async function processWebhookInBackground(
     : undefined;
 
   try {
-    const callbackBaseUrl =
-      process.env.GATEWAY_INTERNAL_URL ?? process.env.GATEWAY_PUBLIC_URL ?? process.env.AUTH_URL ?? "http://localhost:3002";
-    const runRecord = await db.dispatchRun.findUnique({
-      where: { id: dispatchRunId },
-      select: { callbackToken: true },
-    });
-    const callbackUrl = runRecord?.callbackToken
-      ? buildDispatchCallbackUrl(callbackBaseUrl, runRecord.callbackToken)
-      : undefined;
-
-    await db.dispatchRun.update({
-      where: { id: dispatchRunId },
-      data: { callbackUrl: callbackUrl ?? null },
-    });
+    const callbackUrl = undefined;
 
     console.log(`[webhooks] Processing background run: ${dispatchRunId}`);
     const prompt = dispatchRule
@@ -486,40 +467,20 @@ async function processWebhookInBackground(
     }
 
     const dispatchResult = sessionId || existingMapping?.sessionId
-      ? callbackUrl
-        ? await enqueueDispatchInSession(serverUrl, {
-            sessionId: sessionId ?? existingMapping?.sessionId ?? "",
-            content: prompt,
+      ? await executeDispatchInSession(serverUrl, {
+          sessionId: sessionId ?? existingMapping?.sessionId ?? "",
+          content: prompt,
+          scopeUserId: dispatchScopeUserId,
+        })
+      : await executeDispatch(
+          serverUrl,
+          {
+            title: dispatchRule ? `GitHub: ${dispatchRule.name}` : `Webhook: ${webhook.name}`,
+            agentName: dispatchRule?.agentName ?? webhook.agentName,
             scopeUserId: dispatchScopeUserId,
-            callbackUrl,
-          })
-        : await executeDispatchInSession(serverUrl, {
-            sessionId: sessionId ?? existingMapping?.sessionId ?? "",
-            content: prompt,
-            scopeUserId: dispatchScopeUserId,
-            callbackUrl,
-          })
-      : callbackUrl
-        ? await enqueueDispatch(
-            serverUrl,
-            {
-              title: dispatchRule ? `GitHub: ${dispatchRule.name}` : `Webhook: ${webhook.name}`,
-              agentName: dispatchRule?.agentName ?? webhook.agentName,
-              scopeUserId: dispatchScopeUserId,
-              callbackUrl,
-            },
-            prompt,
-          )
-        : await executeDispatch(
-            serverUrl,
-            {
-              title: dispatchRule ? `GitHub: ${dispatchRule.name}` : `Webhook: ${webhook.name}`,
-              agentName: dispatchRule?.agentName ?? webhook.agentName,
-              scopeUserId: dispatchScopeUserId,
-             callbackUrl,
-            },
-            prompt,
-          );
+          },
+          prompt,
+        );
     console.log(`[webhooks] Dispatch result for run ${dispatchRunId}: ${JSON.stringify(dispatchResult)}`);
     sessionId = dispatchResult.sessionId;
 
@@ -537,18 +498,19 @@ async function processWebhookInBackground(
       });
     }
 
-    if (callbackUrl && sessionId) {
-      await markDispatchRunRunning(db, dispatchRunId, sessionId);
-    }
+    await markDispatchRunSuccess(db, dispatchRunId, {
+      sessionId,
+      output: dispatchResult.output,
+      tokenUsage: dispatchResult.tokenUsage,
+    });
 
     broadcast({
       type: "webhook.invoked",
       webhookId: webhook.id,
       webhookName: webhook.name,
       invocationId: dispatchRunId,
-      status: callbackUrl ? "running" : "success",
+      status: "success",
       sessionId,
-      ...(callbackUrl ? { callbackUrl } : {}),
     });
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
