@@ -6,7 +6,7 @@ import remarkGfm from "remark-gfm";
 import { ToolCallCard } from "@/components/tool-renderers/tool-call-card";
 import { PlanningView } from "@/components/chat/planning-view";
 import { cn } from "@/lib/utils";
-import type { MessageResponse, ToolCall, Todo } from "@/types/cognition";
+import type { DelegationEvent, MessageResponse, ToolCall, Todo } from "@/types/cognition";
 import type { InterruptState } from "@/types/cognition";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -62,9 +62,10 @@ interface StreamingMessageProps {
   status: "idle" | "streaming" | "thinking" | "waiting_for_approval" | "resuming";
   interrupt: InterruptState | null;
   onResume?: (action: "approve" | "reject" | "edit", content?: string) => void;
+  delegations?: DelegationEvent[];
 }
 
-export function StreamingMessage({ content, toolCalls, todos, status, interrupt, onResume }: StreamingMessageProps) {
+export function StreamingMessage({ content, toolCalls, todos, status, interrupt, onResume, delegations = [] }: StreamingMessageProps) {
   const [editedContent, setEditedContent] = useState("");
 
   return (
@@ -118,6 +119,24 @@ export function StreamingMessage({ content, toolCalls, todos, status, interrupt,
           <div className="space-y-1.5">
             {toolCalls.map((tc) => (
               <ToolCallCard key={tc.id} toolCall={tc} />
+            ))}
+          </div>
+        )}
+
+        {delegations.length > 0 && (
+          <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Delegation Activity
+            </p>
+            {delegations.map((delegation, index) => (
+              <div key={`${delegation.createdAt}-${index}`} className="rounded-md border bg-background/80 p-2 text-sm">
+                <p>
+                  <span className="font-medium">{delegation.fromAgent}</span>
+                  {" delegated to "}
+                  <span className="font-medium">{delegation.toAgent}</span>
+                </p>
+                <p className="mt-1 text-muted-foreground">{delegation.task}</p>
+              </div>
             ))}
           </div>
         )}
