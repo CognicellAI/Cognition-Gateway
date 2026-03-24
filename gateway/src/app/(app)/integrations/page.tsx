@@ -25,7 +25,19 @@ interface DispatchRule {
   enabled: boolean;
 }
 
-const EMPTY_RULE = {
+interface DispatchRuleFormState {
+  name: string;
+  integrationType: "github";
+  eventType: string;
+  actionFilter: string;
+  agentName: string;
+  promptTemplate: string;
+  contextKeyTemplate: string;
+  approvalMode: "none" | "always";
+  enabled: boolean;
+}
+
+const EMPTY_RULE: DispatchRuleFormState = {
   name: "",
   integrationType: "github",
   eventType: "pull_request",
@@ -37,10 +49,10 @@ const EMPTY_RULE = {
   enabled: true,
 };
 
-function updateTextField<T extends keyof typeof EMPTY_RULE>(
-  setForm: React.Dispatch<React.SetStateAction<typeof EMPTY_RULE>>,
+function updateTextField<T extends keyof DispatchRuleFormState>(
+  setForm: React.Dispatch<React.SetStateAction<DispatchRuleFormState>>,
   key: T,
-  value: string,
+  value: DispatchRuleFormState[T],
 ): void {
   setForm((current) => ({
     ...current,
@@ -52,7 +64,7 @@ export default function IntegrationsPage() {
   const [rules, setRules] = useState<DispatchRule[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState(EMPTY_RULE);
+  const [form, setForm] = useState<DispatchRuleFormState>(EMPTY_RULE);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -77,10 +89,18 @@ export default function IntegrationsPage() {
     setSaving(true);
     setError(null);
     try {
+      const payload = {
+        ...form,
+        actionFilter: form.actionFilter.trim() || undefined,
+        agentName: form.agentName.trim(),
+        promptTemplate: form.promptTemplate.trim(),
+        contextKeyTemplate: form.contextKeyTemplate.trim() || undefined,
+      };
+
       const res = await fetch("/api/dispatch-rules", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const payload = (await res.json()) as { error?: string };
@@ -201,7 +221,7 @@ export default function IntegrationsPage() {
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-1.5">
                 <Label>Integration</Label>
-                <Select value={form.integrationType} onValueChange={(value) => setForm((f) => ({ ...f, integrationType: value }))}>
+                <Select value={form.integrationType} onValueChange={(value) => updateTextField(setForm, "integrationType", value as DispatchRuleFormState["integrationType"])}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="github">GitHub</SelectItem>
@@ -225,10 +245,7 @@ export default function IntegrationsPage() {
               <Input
                 id="rule-agent"
                 value={form.agentName}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setForm((f) => ({ ...f, agentName: value }));
-                }}
+                onChange={(e) => updateTextField(setForm, "agentName", e.target.value)}
               />
             </div>
 
@@ -244,7 +261,7 @@ export default function IntegrationsPage() {
 
             <div className="space-y-1.5">
               <Label>Approval</Label>
-              <Select value={form.approvalMode} onValueChange={(value) => setForm((f) => ({ ...f, approvalMode: value }))}>
+                <Select value={form.approvalMode} onValueChange={(value) => updateTextField(setForm, "approvalMode", value as DispatchRuleFormState["approvalMode"])}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No approval</SelectItem>

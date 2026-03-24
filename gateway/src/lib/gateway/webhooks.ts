@@ -125,7 +125,9 @@ function normalizeGitHubEvent(
   body: unknown,
   eventHeader: string | null,
 ): NormalizedIntegrationEvent | null {
-  const eventType = eventHeader?.trim() ?? extractGitHubEventFromBody(body);
+  const normalizedHeader = eventHeader?.trim().toLowerCase() || null;
+  const bodyEventType = extractGitHubEventFromBody(body);
+  const eventType = normalizedHeader || bodyEventType;
   if (!eventType) {
     return null;
   }
@@ -188,18 +190,23 @@ function matchesDispatchRule(
   rule: { eventType: string; actionFilter: string | null },
   event: NormalizedIntegrationEvent,
 ): boolean {
-  // 1. Event type must match
-  if (event.eventType !== rule.eventType) {
+  const normalizedRuleEventType = rule.eventType.trim().toLowerCase();
+  const normalizedEventType = event.eventType.trim().toLowerCase();
+
+  if (!normalizedRuleEventType || normalizedEventType !== normalizedRuleEventType) {
     return false;
   }
 
-  // 2. If rule has an action filter, event must have a matching action
-  if (rule.actionFilter) {
-    return event.action === rule.actionFilter;
+  if (rule.actionFilter === null) {
+    return true;
   }
 
-  // 3. If rule has no action filter, it matches any action for the event
-  return true;
+  const normalizedRuleAction = rule.actionFilter.trim().toLowerCase();
+  if (!normalizedRuleAction || event.action === null) {
+    return false;
+  }
+
+  return event.action.trim().toLowerCase() === normalizedRuleAction;
 }
 
 /**

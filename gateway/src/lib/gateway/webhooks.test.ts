@@ -137,4 +137,58 @@ describe("dispatch rule template rendering", () => {
     expect(result.httpStatus).toBe(202);
     expect(result.message).toContain("no matching dispatch rule");
   });
+
+  it("matches GitHub rules case-insensitively using header event type and action", async () => {
+    const db = {
+      webhook: {
+        findUnique: async () => ({
+          id: "wh-3",
+          name: "GitHub webhook",
+          path: "github-test",
+          secret: null,
+          agentName: "default",
+          promptTemplate: "Fallback {{body}}",
+          sessionMode: "ephemeral",
+          approvalMode: "none",
+          integrationType: "github",
+          enabled: true,
+        }),
+      },
+      dispatchRule: {
+        findMany: async () => ([
+          {
+            id: "rule-3",
+            name: "PR opened",
+            integrationType: "github",
+            eventType: "Pull_Request",
+            actionFilter: "Opened",
+            agentName: "default",
+            promptTemplate: "Rule {{body}}",
+            contextKeyTemplate: null,
+            approvalMode: "none",
+          },
+        ]),
+      },
+      dispatchRun: {
+        create: async () => ({ id: "run-3" }),
+      },
+    } as any;
+
+    const result = await handleWebhookInvocation(
+      "github-test",
+      { action: "opened", pull_request: { number: 1 } },
+      JSON.stringify({ action: "opened", pull_request: { number: 1 } }),
+      null,
+      "PULL_REQUEST",
+      null,
+      {
+        db,
+        serverUrl: "http://cognition",
+        broadcast: () => undefined,
+        scopeUserId: "gateway-automation",
+      },
+    );
+
+    expect(result.httpStatus).toBe(202);
+  });
 });
