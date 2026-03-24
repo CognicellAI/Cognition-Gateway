@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { PageContent } from "@/components/layout/page-content";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -153,7 +154,7 @@ export default function WebhooksPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl p-6 space-y-6">
+    <PageContent contentClassName="max-w-4xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Webhooks</h1>
@@ -332,7 +333,7 @@ export default function WebhooksPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageContent>
   );
 }
 

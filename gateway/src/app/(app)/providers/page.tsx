@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageContent } from "@/components/layout/page-content";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -182,7 +183,7 @@ export default function ProvidersPage() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl p-6 space-y-6">
+    <PageContent contentClassName="max-w-4xl space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Providers</h1>
@@ -274,7 +275,7 @@ export default function ProvidersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageContent>
   );
 }
 

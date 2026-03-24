@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageContent } from "@/components/layout/page-content";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -117,7 +118,7 @@ export default function IntegrationsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl p-6 space-y-6">
+    <PageContent contentClassName="max-w-5xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Integrations</h1>
@@ -277,6 +278,6 @@ export default function IntegrationsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageContent>
   );
 }

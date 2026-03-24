@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageContent } from "@/components/layout/page-content";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -89,7 +90,7 @@ export default function ModelsPage() {
   const hasFilters = providerFilter || toolCallOnly || search;
 
   return (
-    <div className="mx-auto max-w-5xl p-6 space-y-6">
+    <PageContent contentClassName="max-w-5xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Models</h1>
         <p className="text-muted-foreground mt-1">
@@ -187,7 +188,7 @@ export default function ModelsPage() {
           </div>
         </section>
       ))}
-    </div>
+    </PageContent>
   );
 }
 

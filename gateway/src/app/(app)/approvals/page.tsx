@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageContent } from "@/components/layout/page-content";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface ApprovalRun {
@@ -67,7 +68,7 @@ export default function ApprovalsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl p-6 space-y-6">
+    <PageContent contentClassName="max-w-5xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Approvals</h1>
         <p className="mt-1 text-muted-foreground">Runs waiting for Gateway approval before execution continues</p>
@@ -135,6 +136,6 @@ export default function ApprovalsPage() {
           ))}
         </div>
       )}
-    </div>
+    </PageContent>
   );
 }

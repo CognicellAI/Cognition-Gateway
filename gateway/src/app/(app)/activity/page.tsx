@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageContent } from "@/components/layout/page-content";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CheckCircleIcon, Clock3Icon, RefreshCwIcon, XCircleIcon } from "lucide-react";
@@ -83,7 +84,7 @@ export default function ActivityPage() {
   }, [fetchRuns]);
 
   return (
-    <div className="mx-auto max-w-6xl p-6 space-y-6">
+    <PageContent contentClassName="max-w-6xl space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Activity Feed</h1>
@@ -216,6 +217,6 @@ export default function ActivityPage() {
           })}
         </div>
       )}
-    </div>
+    </PageContent>
   );
 }
