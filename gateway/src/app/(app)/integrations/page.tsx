@@ -37,6 +37,17 @@ const EMPTY_RULE = {
   enabled: true,
 };
 
+function updateTextField<T extends keyof typeof EMPTY_RULE>(
+  setForm: React.Dispatch<React.SetStateAction<typeof EMPTY_RULE>>,
+  key: T,
+  value: string,
+): void {
+  setForm((current) => ({
+    ...current,
+    [key]: value,
+  }));
+}
+
 export default function IntegrationsPage() {
   const [rules, setRules] = useState<DispatchRule[]>([]);
   const [loading, setLoading] = useState(true);
@@ -184,7 +195,7 @@ export default function IntegrationsPage() {
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <Label htmlFor="rule-name">Name</Label>
-              <Input id="rule-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+              <Input id="rule-name" value={form.name} onChange={(e) => updateTextField(setForm, "name", e.target.value)} />
             </div>
 
             <div className="grid gap-4 sm:grid-cols-3">
@@ -200,28 +211,35 @@ export default function IntegrationsPage() {
 
               <div className="space-y-1.5">
                 <Label htmlFor="rule-event">Event</Label>
-                <Input id="rule-event" value={form.eventType} onChange={(e) => setForm((f) => ({ ...f, eventType: e.target.value }))} />
+                <Input id="rule-event" value={form.eventType} onChange={(e) => updateTextField(setForm, "eventType", e.target.value)} />
               </div>
 
               <div className="space-y-1.5">
                 <Label htmlFor="rule-action">Action filter</Label>
-                <Input id="rule-action" value={form.actionFilter} onChange={(e) => setForm((f) => ({ ...f, actionFilter: e.target.value }))} />
+                <Input id="rule-action" value={form.actionFilter} onChange={(e) => updateTextField(setForm, "actionFilter", e.target.value)} />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="rule-agent">Agent</Label>
-              <Input id="rule-agent" value={form.agentName} onChange={(e) => setForm((f) => ({ ...f, agentName: e.target.value }))} />
+              <Label htmlFor="rule-agent">Agent Name</Label>
+              <Input
+                id="rule-agent"
+                value={form.agentName}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setForm((f) => ({ ...f, agentName: value }));
+                }}
+              />
             </div>
 
             <div className="space-y-1.5">
               <Label htmlFor="rule-prompt">Prompt template</Label>
-              <Textarea id="rule-prompt" rows={5} value={form.promptTemplate} onChange={(e) => setForm((f) => ({ ...f, promptTemplate: e.target.value }))} />
+              <Textarea id="rule-prompt" rows={5} value={form.promptTemplate} onChange={(e) => updateTextField(setForm, "promptTemplate", e.target.value)} />
             </div>
 
             <div className="space-y-1.5">
               <Label htmlFor="rule-context">Context key template</Label>
-              <Input id="rule-context" value={form.contextKeyTemplate} onChange={(e) => setForm((f) => ({ ...f, contextKeyTemplate: e.target.value }))} />
+              <Input id="rule-context" value={form.contextKeyTemplate} onChange={(e) => updateTextField(setForm, "contextKeyTemplate", e.target.value)} />
             </div>
 
             <div className="space-y-1.5">

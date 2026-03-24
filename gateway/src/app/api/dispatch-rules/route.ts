@@ -33,6 +33,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   const body = await request.json().catch(() => null);
+  console.log("[api/dispatch-rules] Received payload:", body);
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(

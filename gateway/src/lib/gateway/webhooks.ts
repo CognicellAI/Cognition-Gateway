@@ -78,6 +78,71 @@ export function renderDispatchRuleTemplate(template: string, body: unknown): str
   });
 }
 
+interface NormalizedIntegrationEvent {
+  integrationType: "github";
+  eventType: string;
+  action: string | null;
+  body: unknown;
+}
+
+function extractGitHubEventFromBody(body: unknown): string | undefined {
+  if (typeof body !== "object" || body === null) {
+    return undefined;
+  }
+
+  const record = body as Record<string, unknown>;
+  const issue = record.issue;
+  const pullRequest = record.pull_request;
+  const review = record.review;
+  const comment = record.comment;
+
+  if (typeof pullRequest === "object" && pullRequest !== null) {
+    return "pull_request";
+  }
+
+  if (typeof review === "object" && review !== null) {
+    return "pull_request_review";
+  }
+
+  if (typeof comment === "object" && comment !== null) {
+    const hasPullRequest =
+      typeof issue === "object" &&
+      issue !== null &&
+      typeof (issue as Record<string, unknown>).pull_request === "object";
+    return hasPullRequest ? "pull_request_review_comment" : "issue_comment";
+  }
+
+  if (typeof issue === "object" && issue !== null) {
+    const issueRecord = issue as Record<string, unknown>;
+    const hasPullRequest = typeof issueRecord.pull_request === "object" && issueRecord.pull_request !== null;
+    return hasPullRequest ? "pull_request" : "issues";
+  }
+
+  return undefined;
+}
+
+function normalizeGitHubEvent(
+  body: unknown,
+  eventHeader: string | null,
+): NormalizedIntegrationEvent | null {
+  const eventType = eventHeader?.trim() ?? extractGitHubEventFromBody(body);
+  if (!eventType) {
+    return null;
+  }
+
+  const action =
+    typeof body === "object" && body !== null && typeof (body as Record<string, unknown>).action === "string"
+      ? ((body as Record<string, unknown>).action as string)
+      : null;
+
+  return {
+    integrationType: "github",
+    eventType,
+    action,
+    body,
+  };
+}
+
 function extractContextKey(body: unknown): string | undefined {
   if (typeof body !== "object" || body === null) {
     return undefined;
@@ -121,28 +186,20 @@ function extractContextKey(body: unknown): string | undefined {
 
 function matchesDispatchRule(
   rule: { eventType: string; actionFilter: string | null },
-  body: unknown,
+  event: NormalizedIntegrationEvent,
 ): boolean {
-  if (typeof body !== "object" || body === null) {
+  // 1. Event type must match
+  if (event.eventType !== rule.eventType) {
     return false;
   }
 
-  const record = body as Record<string, unknown>;
-  const eventType = typeof record.eventType === "string"
-    ? record.eventType
-    : typeof record.event_name === "string"
-      ? record.event_name
-      : undefined;
-
-  if (eventType !== rule.eventType) {
-    return false;
+  // 2. If rule has an action filter, event must have a matching action
+  if (rule.actionFilter) {
+    return event.action === rule.actionFilter;
   }
 
-  if (!rule.actionFilter) {
-    return true;
-  }
-
-  return record.action === rule.actionFilter;
+  // 3. If rule has no action filter, it matches any action for the event
+  return true;
 }
 
 /**
@@ -186,31 +243,70 @@ export async function handleWebhookInvocation(
   body: unknown,
   rawBody: string,
   signatureHeader: string | null,
+  eventHeader: string | null,
   sourceIp: string | null,
   ctx: DispatchContext,
 ): Promise<{ httpStatus: number; message: string }> {
+  console.log(`[webhooks] Handling webhook invocation for path: ${path}`);
   const { db, serverUrl, broadcast } = ctx;
 
   const webhook = await db.webhook.findUnique({ where: { path } });
   if (!webhook) {
+    console.error(`[webhooks] Webhook not found for path: ${path}`);
     return { httpStatus: 404, message: "Webhook not found" };
   }
   if (!webhook.enabled) {
     return { httpStatus: 404, message: "Webhook not found" };
   }
 
-  const matchedRule = webhook.integrationType === "github"
-    ? await db.dispatchRule.findFirst({
+  const normalizedEvent = webhook.integrationType === "github"
+    ? normalizeGitHubEvent(body, eventHeader)
+    : null;
+
+  const matchedRule = normalizedEvent
+    ? await db.dispatchRule.findMany({
         where: {
-          integrationType: "github",
+          integrationType: normalizedEvent.integrationType,
           enabled: true,
+          eventType: normalizedEvent.eventType,
         },
         orderBy: { createdAt: "asc" },
-      }).then((rule) => {
-        if (!rule) return null;
-        return matchesDispatchRule(rule, body) ? rule : null;
-      })
+      }).then((rules) => rules.find((rule) => matchesDispatchRule(rule, normalizedEvent)) ?? null)
     : null;
+
+  if (webhook.integrationType && !matchedRule) {
+    const dispatchRun = await createDispatchRun(db, {
+      sourceType: "webhook",
+      sourceId: webhook.id,
+      status: "error",
+      metadata: {
+        webhookName: webhook.name,
+        integrationType: webhook.integrationType,
+        eventType: normalizedEvent?.eventType ?? eventHeader ?? null,
+        action: normalizedEvent?.action ?? null,
+        unmatched: true,
+      },
+      webhookId: webhook.id,
+    });
+
+    await markDispatchRunError(db, dispatchRun.id, {
+      error: `No matching dispatch rule for integration '${webhook.integrationType}' event '${normalizedEvent?.eventType ?? eventHeader ?? "unknown"}'${normalizedEvent?.action ? ` action '${normalizedEvent.action}'` : ""}`,
+    });
+
+    broadcast({
+      type: "webhook.invoked",
+      webhookId: webhook.id,
+      webhookName: webhook.name,
+      invocationId: dispatchRun.id,
+      status: "error",
+      error: `No matching dispatch rule for integration '${webhook.integrationType}'`,
+    });
+
+    return {
+      httpStatus: 202,
+      message: `Accepted but no matching dispatch rule for integration '${webhook.integrationType}'`,
+    };
+  }
 
   // HMAC validation if secret is set
   if (webhook.secret) {
@@ -245,7 +341,10 @@ export async function handleWebhookInvocation(
   });
 
   // Run asynchronously — don't block the HTTP response
-  void processWebhookInBackground(webhook, dispatchRun.id, body, ctx, matchedRule);
+  console.log(`[webhooks] Process webhook ${webhook.id} in background for run ${dispatchRun.id}`);
+  void processWebhookInBackground(webhook, dispatchRun.id, body, ctx, matchedRule).catch((err: unknown) => {
+    console.error(`[webhooks] Background invocation ${dispatchRun.id} failed:`, err);
+  });
 
   return { httpStatus: 202, message: "Accepted" };
 }
@@ -286,6 +385,7 @@ async function processWebhookInBackground(
       data: { callbackUrl: callbackUrl ?? null },
     });
 
+    console.log(`[webhooks] Processing background run: ${dispatchRunId}`);
     const prompt = dispatchRule
       ? renderDispatchRuleTemplate(dispatchRule.promptTemplate, body)
       : renderPromptTemplate(webhook.promptTemplate, body);
@@ -294,6 +394,7 @@ async function processWebhookInBackground(
       : contextKey;
     effectiveContextKey = derivedContextKey || contextKey;
     const approvalRequired = (dispatchRule?.approvalMode ?? webhook.approvalMode) === "always";
+    console.log(`[webhooks] Updating dispatch run ${dispatchRunId} with prompt`);
     await db.dispatchRun.update({
       where: { id: dispatchRunId },
       data: {
@@ -306,6 +407,7 @@ async function processWebhookInBackground(
     });
 
     if (approvalRequired) {
+      console.log(`[webhooks] Approval required for run ${dispatchRunId}`);
       broadcast({
         type: "dispatch.approval_required",
         runId: dispatchRunId,
@@ -316,6 +418,7 @@ async function processWebhookInBackground(
       return;
     }
 
+    console.log(`[webhooks] Checking session for run ${dispatchRunId}`);
     if (!existingMapping && effectiveContextKey) {
       const reconciledSessionId = await findSessionIdByMetadata(serverUrl, {
         sourceType: "webhook",
@@ -394,10 +497,11 @@ async function processWebhookInBackground(
               title: dispatchRule ? `GitHub: ${dispatchRule.name}` : `Webhook: ${webhook.name}`,
               agentName: dispatchRule?.agentName ?? webhook.agentName,
               scopeUserId: ctx.scopeUserId,
-              callbackUrl,
+             callbackUrl,
             },
             prompt,
           );
+    console.log(`[webhooks] Dispatch result for run ${dispatchRunId}: ${JSON.stringify(dispatchResult)}`);
     sessionId = dispatchResult.sessionId;
 
     if (effectiveContextKey) {

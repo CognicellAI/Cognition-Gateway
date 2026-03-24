@@ -17,12 +17,14 @@ export async function POST(
   request: Request,
   { params }: RouteParams,
 ): Promise<NextResponse> {
+  console.log("[hooks] Ingress hit for POST");
   const { path: segments } = await params;
   const path = segments.join("/");
 
   // Read raw body for HMAC validation
   const rawBody = await request.text();
   const signatureHeader = request.headers.get("X-Hub-Signature-256");
+  const eventHeader = request.headers.get("X-GitHub-Event") ?? request.headers.get("x-github-event");
 
   // Parse JSON body (best-effort)
   let body: unknown = rawBody;
@@ -45,6 +47,7 @@ export async function POST(
     body,
     rawBody,
     signatureHeader,
+    eventHeader,
     sourceIp,
     {
       db,
