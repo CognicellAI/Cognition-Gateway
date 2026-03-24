@@ -3,6 +3,7 @@ import {
   consumeCognitionStream,
   createCognitionSession,
   sendCognitionMessage,
+  findSessionIdByMetadata,
   enqueueDispatchInSession,
   buildDispatchCallbackUrl,
   parseCallbackOutcome,
@@ -183,5 +184,31 @@ describe("dispatch helpers", () => {
       tokenUsage: 12,
       error: undefined,
     });
+  });
+
+  it("looks up sessions by metadata filters", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ sessions: [{ id: "session-by-metadata" }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    const sessionId = await findSessionIdByMetadata(
+      "http://cognition",
+      {
+        sourceType: "webhook",
+        sourceId: "wh-1",
+        contextKey: "ctx-1",
+      },
+      "gateway-automation"
+    );
+
+    expect(sessionId).toBe("session-by-metadata");
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("metadata.sourceType=webhook");
+    expect(url).toContain("metadata.sourceId=wh-1");
+    expect(url).toContain("metadata.contextKey=ctx-1");
+    expect(new Headers(init.headers).get("x-cognition-scope-user")).toBe("gateway-automation");
   });
 });
