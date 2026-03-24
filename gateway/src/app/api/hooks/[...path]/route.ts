@@ -53,7 +53,7 @@ export async function POST(
       db,
       serverUrl: g.cognitionServerUrl ?? process.env.COGNITION_SERVER_URL ?? "http://localhost:8000",
       broadcast: g.wsBroadcast ?? (() => undefined),
-      scopeUserId: "gateway-automation",
+      scopeUserId: undefined,
     },
   );
 

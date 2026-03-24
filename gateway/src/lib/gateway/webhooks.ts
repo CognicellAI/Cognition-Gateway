@@ -21,6 +21,7 @@ import {
   findSessionIdByMetadata,
   generateCallbackToken,
   markDispatchRunError,
+  markDispatchRunRunning,
   markDispatchRunSuccess,
   reserveContextMapping,
   type DispatchContext,
@@ -143,6 +144,15 @@ function normalizeGitHubEvent(
     action,
     body,
   };
+}
+
+function getWebhookUserId(webhook: unknown): string {
+  const candidate = (webhook as { userId?: unknown }).userId;
+  if (typeof candidate !== "string" || candidate.trim().length === 0) {
+    throw new Error("Webhook is missing user ownership metadata");
+  }
+
+  return candidate;
 }
 
 function extractContextKey(body: unknown): string | undefined {
@@ -334,6 +344,7 @@ export async function handleWebhookInvocation(
         sessionMode: webhook.sessionMode,
         approvalMode: webhook.approvalMode,
         sourceIp,
+        userId: typeof webhook.userId === "string" ? webhook.userId : ctx.scopeUserId,
         scopeUserId: ctx.scopeUserId,
         ...(matchedRule ? { dispatchRuleId: matchedRule.id, integrationType: matchedRule.integrationType } : {}),
       },
@@ -357,7 +368,7 @@ export async function handleWebhookInvocation(
 }
 
 async function processWebhookInBackground(
-  webhook: { id: string; name: string; agentName: string; promptTemplate: string; sessionMode: string; approvalMode: string },
+  webhook: { id: string; name: string; userId: string; agentName: string; promptTemplate: string; sessionMode: string; approvalMode: string },
   dispatchRunId: string,
   body: unknown,
   ctx: DispatchContext,
@@ -365,6 +376,7 @@ async function processWebhookInBackground(
 ): Promise<void> {
   const { db, serverUrl, broadcast } = ctx;
   let sessionId: string | undefined;
+  const dispatchScopeUserId = getWebhookUserId(webhook);
   const contextKey = webhook.sessionMode === "persistent" ? extractContextKey(body) : undefined;
   let effectiveContextKey = contextKey;
   const existingMapping = await findContextMapping(db, contextKey);
@@ -431,7 +443,7 @@ async function processWebhookInBackground(
         sourceType: "webhook",
         sourceId: webhook.id,
         contextKey: effectiveContextKey,
-      }, ctx.scopeUserId);
+      }, dispatchScopeUserId);
       if (reconciledSessionId) {
         sessionId = reconciledSessionId;
         await reserveContextMapping(db, {
@@ -452,7 +464,7 @@ async function processWebhookInBackground(
       sessionId = await createCognitionSession(serverUrl, {
         title: dispatchRule ? `GitHub: ${dispatchRule.name}` : `Webhook: ${webhook.name}`,
         agentName: dispatchRule?.agentName ?? webhook.agentName,
-        scopeUserId: ctx.scopeUserId,
+        scopeUserId: dispatchScopeUserId,
         metadata: {
           ...(metadataLookup ?? {}),
           ...(dispatchRule ? { dispatchRuleId: dispatchRule.id } : {}),
@@ -478,13 +490,13 @@ async function processWebhookInBackground(
         ? await enqueueDispatchInSession(serverUrl, {
             sessionId: sessionId ?? existingMapping?.sessionId ?? "",
             content: prompt,
-            scopeUserId: ctx.scopeUserId,
+            scopeUserId: dispatchScopeUserId,
             callbackUrl,
           })
         : await executeDispatchInSession(serverUrl, {
             sessionId: sessionId ?? existingMapping?.sessionId ?? "",
             content: prompt,
-            scopeUserId: ctx.scopeUserId,
+            scopeUserId: dispatchScopeUserId,
             callbackUrl,
           })
       : callbackUrl
@@ -493,7 +505,7 @@ async function processWebhookInBackground(
             {
               title: dispatchRule ? `GitHub: ${dispatchRule.name}` : `Webhook: ${webhook.name}`,
               agentName: dispatchRule?.agentName ?? webhook.agentName,
-              scopeUserId: ctx.scopeUserId,
+              scopeUserId: dispatchScopeUserId,
               callbackUrl,
             },
             prompt,
@@ -503,7 +515,7 @@ async function processWebhookInBackground(
             {
               title: dispatchRule ? `GitHub: ${dispatchRule.name}` : `Webhook: ${webhook.name}`,
               agentName: dispatchRule?.agentName ?? webhook.agentName,
-              scopeUserId: ctx.scopeUserId,
+              scopeUserId: dispatchScopeUserId,
              callbackUrl,
             },
             prompt,
@@ -523,6 +535,10 @@ async function processWebhookInBackground(
           contextKey: effectiveContextKey,
         },
       });
+    }
+
+    if (callbackUrl && sessionId) {
+      await markDispatchRunRunning(db, dispatchRunId, sessionId);
     }
 
     broadcast({

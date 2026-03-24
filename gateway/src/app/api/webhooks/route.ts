@@ -33,6 +33,7 @@ export async function GET(): Promise<NextResponse> {
   }
 
   const webhooks = await db.webhook.findMany({
+    where: { userId: session.user.id },
     orderBy: { createdAt: "desc" },
     include: {
       dispatchRuns: {
@@ -77,7 +78,10 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   const webhook = await db.webhook.create({
-    data: parsed.data,
+    data: {
+      ...parsed.data,
+      userId: session.user.id,
+    },
     include: {
       dispatchRuns: {
         where: { sourceType: "webhook" },

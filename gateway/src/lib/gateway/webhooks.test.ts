@@ -36,6 +36,7 @@ describe("dispatch rule template rendering", () => {
         findUnique: async () => ({
           id: "wh-1",
           name: "GitHub webhook",
+          userId: "user-1",
           path: "github-test",
           secret: null,
           agentName: "default",
@@ -88,6 +89,7 @@ describe("dispatch rule template rendering", () => {
         findUnique: async () => ({
           id: "wh-2",
           name: "GitHub webhook",
+          userId: "user-1",
           path: "github-test",
           secret: null,
           agentName: "default",
@@ -144,6 +146,7 @@ describe("dispatch rule template rendering", () => {
         findUnique: async () => ({
           id: "wh-3",
           name: "GitHub webhook",
+          userId: "user-1",
           path: "github-test",
           secret: null,
           agentName: "default",
@@ -190,5 +193,103 @@ describe("dispatch rule template rendering", () => {
     );
 
     expect(result.httpStatus).toBe(202);
+  });
+
+  it("uses the webhook owner user id as the dispatch scope user for persistent sessions", async () => {
+    const requests: Array<{ headers: HeadersInit | undefined; body: string | undefined }> = [];
+    const originalFetch = globalThis.fetch;
+
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      requests.push({ headers: init?.headers, body: typeof init?.body === "string" ? init.body : undefined });
+
+      if (requests.length === 1) {
+        return new Response(JSON.stringify({ id: "session-1" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as typeof fetch;
+
+    const db = {
+      webhook: {
+        findUnique: async () => ({
+          id: "wh-4",
+          name: "GitHub webhook",
+          userId: "owner-user-id",
+          path: "github-test",
+          secret: null,
+          agentName: "default",
+          promptTemplate: "Fallback {{body}}",
+          sessionMode: "persistent",
+          approvalMode: "none",
+          integrationType: "github",
+          enabled: true,
+        }),
+      },
+      dispatchRule: {
+        findMany: async () => ([
+          {
+            id: "rule-4",
+            name: "PR opened",
+            integrationType: "github",
+            eventType: "pull_request",
+            actionFilter: "opened",
+            agentName: "default",
+            promptTemplate: "Rule {{body}}",
+            contextKeyTemplate: null,
+            approvalMode: "none",
+          },
+        ]),
+      },
+      dispatchRun: {
+        create: async () => ({ id: "run-4" }),
+        findUnique: async () => ({ callbackToken: null }),
+        update: async () => undefined,
+      },
+      contextMapping: {
+        findUnique: async () => null,
+        upsert: async () => undefined,
+        create: async () => undefined,
+        deleteMany: async () => undefined,
+      },
+    } as any;
+
+    try {
+      const result = await handleWebhookInvocation(
+        "github-test",
+        {
+          action: "opened",
+          pull_request: { number: 1, title: "Test PR" },
+          repository: { full_name: "acme/repo" },
+          sender: { login: "octocat" },
+        },
+        JSON.stringify({ action: "opened" }),
+        null,
+        "pull_request",
+        null,
+        {
+          db,
+          serverUrl: "http://cognition",
+          broadcast: () => undefined,
+          scopeUserId: undefined,
+        },
+      );
+
+      expect(result.httpStatus).toBe(202);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      const firstHeaders = new Headers(requests[0]?.headers);
+      const secondHeaders = new Headers(requests[1]?.headers);
+
+      expect(firstHeaders.get("x-cognition-scope-user")).toBe("owner-user-id");
+      expect(secondHeaders.get("x-cognition-scope-user")).toBe("owner-user-id");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });

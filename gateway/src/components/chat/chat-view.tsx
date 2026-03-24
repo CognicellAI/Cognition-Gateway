@@ -27,6 +27,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
   const [selectedProviderId, setSelectedProviderId] = useState<string>("");
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [messagesLoading, setMessagesLoading] = useState(true);
+  const [messagesError, setMessagesError] = useState<string | null>(null);
   const [lastUserContent, setLastUserContent] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -77,6 +78,15 @@ export function ChatView({ sessionId }: ChatViewProps) {
         if (msgsRes.ok) {
           const data = await msgsRes.json();
           setMessages(sessionId, data.messages ?? []);
+          setMessagesError(null);
+        } else if (msgsRes.status === 404) {
+          const reconstructed = await reconstructMessagesFromActivity(sessionId);
+          if (reconstructed.length > 0) {
+            setMessages(sessionId, reconstructed);
+            setMessagesError(null);
+          }
+        } else {
+          setMessagesError(`Failed to load messages (${msgsRes.status})`);
         }
         if (agentsRes.ok) {
           const data = await agentsRes.json();
@@ -168,6 +178,10 @@ export function ChatView({ sessionId }: ChatViewProps) {
               {Array.from({ length: 3 }).map((_, i) => (
                 <Skeleton key={i} className={`h-12 w-3/4 rounded-xl ${i % 2 === 0 ? "ml-auto" : ""}`} />
               ))}
+            </div>
+          ) : messagesError ? (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {messagesError}
             </div>
           ) : messages.length === 0 && !isStreaming ? (
             <EmptyState agentName={selectedAgent} />
@@ -290,6 +304,56 @@ export function ChatView({ sessionId }: ChatViewProps) {
       <TaskCanvas sessionId={sessionId} />
     </div>
   );
+}
+
+async function reconstructMessagesFromActivity(sessionId: string): Promise<MessageResponse[]> {
+  const response = await fetch("/api/activity");
+  if (!response.ok) {
+    return [];
+  }
+
+  const data = await response.json() as { runs?: Array<{ sessionId?: string | null; renderedPrompt?: string | null; output?: string | null; startedAt?: string; finishedAt?: string | null; }> };
+  const run = (data.runs ?? []).find((candidate) => candidate.sessionId === sessionId);
+  if (!run?.renderedPrompt) {
+    return [];
+  }
+
+  const createdAt = run.startedAt ?? new Date().toISOString();
+  const messages: MessageResponse[] = [
+    {
+      id: `${sessionId}-reconstructed-user`,
+      session_id: sessionId,
+      role: "user",
+      content: run.renderedPrompt,
+      parent_id: null,
+      model: null,
+      created_at: createdAt,
+      tool_calls: null,
+      tool_call_id: null,
+      token_count: null,
+      model_used: null,
+      metadata: { reconstructed: true },
+    },
+  ];
+
+  if (typeof run.output === "string") {
+    messages.push({
+      id: `${sessionId}-reconstructed-assistant`,
+      session_id: sessionId,
+      role: "assistant",
+      content: run.output,
+      parent_id: messages[0].id,
+      model: null,
+      created_at: run.finishedAt ?? createdAt,
+      tool_calls: null,
+      tool_call_id: null,
+      token_count: null,
+      model_used: null,
+      metadata: { reconstructed: true },
+    });
+  }
+
+  return messages;
 }
 
 function EmptyState({ agentName }: { agentName: string }) {
