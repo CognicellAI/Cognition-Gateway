@@ -471,11 +471,13 @@ export async function markDispatchRunError(
 export async function markDispatchRunRunning(
   db: PrismaClient,
   dispatchRunId: string,
+  sessionId?: string,
 ): Promise<void> {
   await db.dispatchRun.update({
     where: { id: dispatchRunId },
     data: {
       status: "running",
+      sessionId,
       finishedAt: null,
     },
   });

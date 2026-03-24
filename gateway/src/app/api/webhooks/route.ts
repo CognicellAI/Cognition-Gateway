@@ -21,6 +21,8 @@ const createSchema = z.object({
   promptTemplate: z.string().min(1),
   sessionMode: z.enum(["ephemeral", "persistent"]).default("ephemeral"),
   approvalMode: z.enum(["none", "always"]).default("none"),
+  integrationType: z.enum(["github"]).optional(),
+  eventType: z.string().min(1).optional(),
   enabled: z.boolean().default(true),
 });
 
@@ -31,6 +33,7 @@ export async function GET(): Promise<NextResponse> {
   }
 
   const webhooks = await db.webhook.findMany({
+    where: { userId: session.user.id },
     orderBy: { createdAt: "desc" },
     include: {
       dispatchRuns: {
@@ -75,7 +78,10 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   const webhook = await db.webhook.create({
-    data: parsed.data,
+    data: {
+      ...parsed.data,
+      userId: session.user.id,
+    },
     include: {
       dispatchRuns: {
         where: { sourceType: "webhook" },

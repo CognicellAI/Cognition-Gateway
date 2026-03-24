@@ -20,6 +20,7 @@ model User {
   accounts      Account[]
   sessions      Session[]
   apiKeys       ApiKey[]
+  webhooks      Webhook[]
 }
 
 model Account {
@@ -83,6 +84,7 @@ model CronJob {
 
 model Webhook {
   id             String              @id @default(cuid())
+  userId         String
   name           String
   path           String              @unique // e.g. "my-webhook" → POST /api/hooks/my-webhook
   secret         String?             // HMAC secret for signature validation
@@ -91,9 +93,29 @@ model Webhook {
   sessionMode    String              @default("ephemeral")
   approvalMode   String              @default("none")
   enabled        Boolean             @default(true)
+  integrationType String?            // e.g. github
+  eventType      String?             // e.g. pull_request
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   dispatchRuns   DispatchRun[]
+
+  @@index([userId])
+}
+
+model DispatchRule {
+  id                String   @id @default(cuid())
+  name              String
+  integrationType   String   // e.g. github
+  eventType         String   // e.g. pull_request
+  actionFilter      String?  // e.g. opened, synchronize
+  agentName         String
+  promptTemplate    String
+  contextKeyTemplate String?
+  approvalMode      String   @default("none")
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 model DispatchRun {

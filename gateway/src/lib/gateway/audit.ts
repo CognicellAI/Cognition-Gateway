@@ -20,6 +20,7 @@ export type AuditAction =
   | "webhook.update"
   | "webhook.delete"
   | "webhook.invoke"
+  | "dispatch_rule.create"
   | "user.create"
   | "user.role_change"
   | "apikey.create"

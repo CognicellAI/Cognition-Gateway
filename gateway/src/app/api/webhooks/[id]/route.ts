@@ -21,6 +21,8 @@ const patchSchema = z.object({
   promptTemplate: z.string().min(1).optional(),
   sessionMode: z.enum(["ephemeral", "persistent"]).optional(),
   approvalMode: z.enum(["none", "always"]).optional(),
+  integrationType: z.enum(["github"]).optional().nullable(),
+  eventType: z.string().min(1).optional().nullable(),
   enabled: z.boolean().optional(),
 });
 
@@ -34,8 +36,8 @@ export async function GET(
   }
 
   const { id } = await params;
-  const webhook = await db.webhook.findUnique({
-    where: { id },
+  const webhook = await db.webhook.findFirst({
+    where: { id, userId: session.user.id },
     include: {
       dispatchRuns: {
         where: { sourceType: "webhook" },
@@ -78,7 +80,7 @@ export async function PATCH(
     );
   }
 
-  const existing = await db.webhook.findUnique({ where: { id } });
+  const existing = await db.webhook.findFirst({ where: { id, userId: session.user.id } });
   if (!existing) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -117,7 +119,7 @@ export async function DELETE(
   }
 
   const { id } = await params;
-  const existing = await db.webhook.findUnique({ where: { id } });
+  const existing = await db.webhook.findFirst({ where: { id, userId: session.user.id } });
   if (!existing) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }

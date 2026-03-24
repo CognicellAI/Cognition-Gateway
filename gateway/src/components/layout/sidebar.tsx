@@ -21,6 +21,7 @@ import {
   ActivityIcon,
   ClipboardListIcon,
   ShieldAlertIcon,
+  GithubIcon,
   KeyRoundIcon,
   PencilIcon,
   CheckIcon,
@@ -62,6 +63,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/config", label: "Config", icon: SlidersHorizontalIcon },
   { href: "/cron", label: "Cron", icon: CalendarClockIcon },
   { href: "/webhooks", label: "Webhooks", icon: WebhookIcon },
+  { href: "/integrations", label: "Integrations", icon: GithubIcon },
   { href: "/activity", label: "Activity", icon: ActivityIcon },
   { href: "/approvals", label: "Approvals", icon: ShieldAlertIcon },
 ];

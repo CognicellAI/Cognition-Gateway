@@ -20,6 +20,7 @@ import {
   findSessionIdByMetadata,
   generateCallbackToken,
   markDispatchRunError,
+  markDispatchRunRunning,
   markDispatchRunSuccess,
   type DispatchContext,
   upsertContextMapping,
@@ -163,6 +164,10 @@ async function runCronJob(
         sessionId,
         metadata: metadataLookup,
       });
+    }
+
+    if (callbackUrl && sessionId) {
+      await markDispatchRunRunning(db, dispatchRun.id, sessionId);
     }
 
     if (!callbackUrl) {
