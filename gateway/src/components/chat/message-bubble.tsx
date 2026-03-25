@@ -4,7 +4,7 @@ import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
-import { ToolCallCard } from "@/components/tool-renderers/tool-call-card";
+import { getToolDisplayName, getToolResultSummary, ToolCallCard } from "@/components/tool-renderers/tool-call-card";
 import { PlanningView } from "@/components/chat/planning-view";
 import { cn } from "@/lib/utils";
 import type { DelegationEvent, ExecutionLogMetadata, MessageResponse, ToolCall, Todo } from "@/types/cognition";
@@ -21,9 +21,25 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.role === "user";
   const metadata = (message.metadata ?? {}) as ExecutionLogMetadata;
   const persistedDelegations = metadata.delegations ?? [];
+  const persistedToolOutputs = new Map((metadata.tool_outputs ?? []).map((entry) => [entry.id, entry]));
   const hasExecutionLog = !isUser && ((message.tool_calls?.length ?? 0) > 0 || persistedDelegations.length > 0);
   const [executionLogExpanded, setExecutionLogExpanded] = useState(false);
   const executionLogSectionCount = (persistedDelegations.length > 0 ? 1 : 0) + ((message.tool_calls?.length ?? 0) > 0 ? 1 : 0);
+  const toolCallsForDisplay = (message.tool_calls ?? []).map((tc) => {
+    const persisted = persistedToolOutputs.get(tc.id);
+    const args = {
+      ...(tc.args as Record<string, unknown>),
+      ...(persisted?.display_name ? { display_name: persisted.display_name } : {}),
+    };
+
+    return {
+      ...tc,
+      args,
+      output: persisted?.result_summary ?? persisted?.output,
+      exit_code: persisted?.exit_code,
+    } satisfies ToolCall;
+  });
+  const executionLogSummary = summarizeExecutionLog(persistedDelegations.length, toolCallsForDisplay);
 
   return (
     <div className={cn("flex w-full", isUser ? "justify-end" : "justify-start")}>
@@ -64,9 +80,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                   Execution Log
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {executionLogSectionCount} section{executionLogSectionCount === 1 ? "" : "s"}
-                  {persistedDelegations.length > 0 ? " • delegation" : ""}
-                  {(message.tool_calls?.length ?? 0) > 0 ? ` • ${message.tool_calls?.length ?? 0} tool call${(message.tool_calls?.length ?? 0) === 1 ? "" : "s"}` : ""}
+                  {executionLogSummary ?? `${executionLogSectionCount} section${executionLogSectionCount === 1 ? "" : "s"}`}
                 </p>
               </div>
             </button>
@@ -91,17 +105,14 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                   </div>
                 )}
 
-                {message.tool_calls && message.tool_calls.length > 0 && (
+                {toolCallsForDisplay.length > 0 && (
                   <div className="space-y-2 rounded-lg border bg-background/70 p-3">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       Tool Calls
                     </p>
                     <div className="space-y-1.5">
-                      {message.tool_calls.map((tc) => (
-                        <ToolCallCard
-                          key={tc.id}
-                          toolCall={{ ...tc, args: tc.args as Record<string, unknown> }}
-                        />
+                      {toolCallsForDisplay.map((tc) => (
+                        <ToolCallCard key={tc.id} toolCall={tc} />
                       ))}
                     </div>
                   </div>
@@ -216,4 +227,31 @@ export function StreamingMessage({ content, toolCalls, todos, status, interrupt,
       </div>
     </div>
   );
+}
+
+function summarizeExecutionLog(delegationCount: number, toolCalls: ToolCall[]): string | null {
+  const parts: string[] = [];
+
+  if (delegationCount > 0) {
+    parts.push(`${delegationCount} delegation${delegationCount === 1 ? "" : "s"}`);
+  }
+
+  const namedTools = toolCalls
+    .map((toolCall) => ({
+      name: getToolDisplayName(toolCall),
+      summary: getToolResultSummary(toolCall),
+    }))
+    .filter((entry) => entry.name !== "write_todos");
+
+  const uniqueNames = Array.from(new Set(namedTools.map((entry) => entry.name)));
+  if (uniqueNames.length > 0) {
+    parts.push(uniqueNames.slice(0, 2).join(" + "));
+  }
+
+  const supportToolCount = namedTools.filter((entry) => !["execute", "ls", "subagent", "general-purpose"].includes(entry.name)).length;
+  if (supportToolCount > 0) {
+    parts.push(`${supportToolCount} support tool${supportToolCount === 1 ? "" : "s"}`);
+  }
+
+  return parts.length > 0 ? parts.join(" • ") : null;
 }

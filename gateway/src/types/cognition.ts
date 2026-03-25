@@ -44,6 +44,8 @@ export interface ToolCallResponse {
   name: string;
   args: Record<string, unknown>;
   id: string;
+  output?: string;
+  exit_code?: number;
 }
 
 export interface MessageResponse {
@@ -233,8 +235,17 @@ export interface DelegationEvent {
   createdAt: string;
 }
 
+export interface PersistedToolOutput {
+  id: string;
+  output?: string;
+  exit_code?: number;
+  result_summary?: string;
+  display_name?: string;
+}
+
 export interface ExecutionLogMetadata {
   delegations?: DelegationEvent[];
+  tool_outputs?: PersistedToolOutput[];
 }
 
 export interface ToolInfo {
