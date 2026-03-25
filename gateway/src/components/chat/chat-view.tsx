@@ -197,6 +197,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
                   todos={stream.todos}
                   status={stream.status}
                   interrupt={stream.interrupt}
+                  delegations={stream.delegations}
                   onResume={handleResume}
                 />
               )}

@@ -30,6 +30,7 @@ export function useChatStream({ sessionId, agentName, providerId, model }: UseCh
     setStreamStatus,
     setStreamUsage,
     setInterrupt,
+    addDelegation,
     finalizeStream,
     clearStream,
     appendMessage,
@@ -163,6 +164,11 @@ export function useChatStream({ sessionId, agentName, providerId, model }: UseCh
           break;
 
         case "delegation":
+          addDelegation(sessionId, {
+            fromAgent: event.data.from_agent,
+            toAgent: event.data.to_agent,
+            task: event.data.task,
+          });
           setStreamStatus(sessionId, "streaming");
           break;
 
@@ -180,6 +186,7 @@ export function useChatStream({ sessionId, agentName, providerId, model }: UseCh
       setStreamStatus,
       setStreamUsage,
       setInterrupt,
+      addDelegation,
       finalizeStream,
       clearStream,
       setStreamError,

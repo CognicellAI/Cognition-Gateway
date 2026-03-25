@@ -3,10 +3,11 @@
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
+import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import { ToolCallCard } from "@/components/tool-renderers/tool-call-card";
 import { PlanningView } from "@/components/chat/planning-view";
 import { cn } from "@/lib/utils";
-import type { MessageResponse, ToolCall, Todo } from "@/types/cognition";
+import type { DelegationEvent, ExecutionLogMetadata, MessageResponse, ToolCall, Todo } from "@/types/cognition";
 import type { InterruptState } from "@/types/cognition";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,6 +19,11 @@ interface MessageBubbleProps {
 
 export function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.role === "user";
+  const metadata = (message.metadata ?? {}) as ExecutionLogMetadata;
+  const persistedDelegations = metadata.delegations ?? [];
+  const hasExecutionLog = !isUser && ((message.tool_calls?.length ?? 0) > 0 || persistedDelegations.length > 0);
+  const [executionLogExpanded, setExecutionLogExpanded] = useState(false);
+  const executionLogSectionCount = (persistedDelegations.length > 0 ? 1 : 0) + ((message.tool_calls?.length ?? 0) > 0 ? 1 : 0);
 
   return (
     <div className={cn("flex w-full", isUser ? "justify-end" : "justify-start")}>
@@ -39,15 +45,69 @@ export function MessageBubble({ message }: MessageBubbleProps) {
             </ReactMarkdown>
           </div>
         )}
-        {/* Tool calls on assistant messages */}
-        {!isUser && message.tool_calls && message.tool_calls.length > 0 && (
-          <div className="space-y-1.5 mt-2">
-            {message.tool_calls.map((tc) => (
-              <ToolCallCard
-                key={tc.id}
-                toolCall={{ ...tc, args: tc.args as Record<string, unknown> }}
-              />
-            ))}
+
+        {hasExecutionLog && (
+          <div className="mt-3 rounded-xl border border-border/70 bg-muted/20 overflow-hidden">
+            <button
+              type="button"
+              className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-muted/40 transition-colors"
+              onClick={() => setExecutionLogExpanded((current) => !current)}
+              aria-expanded={executionLogExpanded}
+            >
+              {executionLogExpanded ? (
+                <ChevronDownIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+              ) : (
+                <ChevronRightIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  Execution Log
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {executionLogSectionCount} section{executionLogSectionCount === 1 ? "" : "s"}
+                  {persistedDelegations.length > 0 ? " • delegation" : ""}
+                  {(message.tool_calls?.length ?? 0) > 0 ? ` • ${message.tool_calls?.length ?? 0} tool call${(message.tool_calls?.length ?? 0) === 1 ? "" : "s"}` : ""}
+                </p>
+              </div>
+            </button>
+
+            {executionLogExpanded && (
+              <div className="space-y-3 border-t border-border/60 p-3">
+                {persistedDelegations.length > 0 && (
+                  <div className="space-y-2 rounded-lg border bg-background/70 p-3">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Delegation Activity
+                    </p>
+                    {persistedDelegations.map((delegation, index) => (
+                      <div key={`${delegation.createdAt}-${index}`} className="rounded-md border bg-background/80 p-2 text-sm">
+                        <p>
+                          <span className="font-medium">{delegation.fromAgent}</span>
+                          {" delegated to "}
+                          <span className="font-medium">{delegation.toAgent}</span>
+                        </p>
+                        <p className="mt-1 text-muted-foreground">{delegation.task}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {message.tool_calls && message.tool_calls.length > 0 && (
+                  <div className="space-y-2 rounded-lg border bg-background/70 p-3">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Tool Calls
+                    </p>
+                    <div className="space-y-1.5">
+                      {message.tool_calls.map((tc) => (
+                        <ToolCallCard
+                          key={tc.id}
+                          toolCall={{ ...tc, args: tc.args as Record<string, unknown> }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -62,9 +122,10 @@ interface StreamingMessageProps {
   status: "idle" | "streaming" | "thinking" | "waiting_for_approval" | "resuming";
   interrupt: InterruptState | null;
   onResume?: (action: "approve" | "reject" | "edit", content?: string) => void;
+  delegations?: DelegationEvent[];
 }
 
-export function StreamingMessage({ content, toolCalls, todos, status, interrupt, onResume }: StreamingMessageProps) {
+export function StreamingMessage({ content, toolCalls, todos, status, interrupt, onResume, delegations = [] }: StreamingMessageProps) {
   const [editedContent, setEditedContent] = useState("");
 
   return (
@@ -118,6 +179,24 @@ export function StreamingMessage({ content, toolCalls, todos, status, interrupt,
           <div className="space-y-1.5">
             {toolCalls.map((tc) => (
               <ToolCallCard key={tc.id} toolCall={tc} />
+            ))}
+          </div>
+        )}
+
+        {delegations.length > 0 && (
+          <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Delegation Activity
+            </p>
+            {delegations.map((delegation, index) => (
+              <div key={`${delegation.createdAt}-${index}`} className="rounded-md border bg-background/80 p-2 text-sm">
+                <p>
+                  <span className="font-medium">{delegation.fromAgent}</span>
+                  {" delegated to "}
+                  <span className="font-medium">{delegation.toAgent}</span>
+                </p>
+                <p className="mt-1 text-muted-foreground">{delegation.task}</p>
+              </div>
             ))}
           </div>
         )}

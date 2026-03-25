@@ -1,10 +1,12 @@
 import { create } from "zustand";
 import type {
+  ExecutionLogMetadata,
   SessionSummary,
   MessageResponse,
   ToolCall,
   Todo,
   InterruptState,
+  DelegationEvent,
 } from "@/types/cognition";
 
 export interface Artifact {
@@ -26,6 +28,7 @@ export interface StreamState {
   error: string | null;
   currentStepIndex: number; // tracks which plan step is active for tool call association
   interrupt: InterruptState | null;
+  delegations: DelegationEvent[];
 }
 
 interface Notification {
@@ -78,6 +81,7 @@ interface ChatStore {
   setStreamStatus: (sessionId: string, status: StreamState["status"]) => void;
   setStreamUsage: (sessionId: string, usage: StreamState["usage"]) => void;
   setInterrupt: (sessionId: string, interrupt: InterruptState | null) => void;
+  addDelegation: (sessionId: string, delegation: Omit<DelegationEvent, "createdAt">) => void;
   finalizeStream: (sessionId: string, message: MessageResponse) => void;
   clearStream: (sessionId: string) => void;
   setStreamError: (sessionId: string, error: string) => void;
@@ -104,6 +108,7 @@ const defaultStreamState = (): StreamState => ({
   error: null,
   currentStepIndex: 0,
   interrupt: null,
+  delegations: [],
 });
 
 export const useChatStore = create<ChatStore>((set, get) => ({
@@ -288,9 +293,35 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       return { streams };
     }),
 
+  addDelegation: (sessionId, delegation) =>
+    set((s) => {
+      const streams = new Map(s.streams);
+      const stream = streams.get(sessionId) ?? defaultStreamState();
+      streams.set(sessionId, {
+        ...stream,
+        delegations: [
+          ...stream.delegations,
+          {
+            ...delegation,
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      });
+      return { streams };
+    }),
+
   finalizeStream: (sessionId, message) => {
     const { appendMessage, clearStream } = get();
-    appendMessage(sessionId, message);
+    const stream = get().streams.get(sessionId) ?? defaultStreamState();
+    const metadata = {
+      ...(message.metadata ?? {}),
+      ...(stream.delegations.length > 0 ? { delegations: stream.delegations } : {}),
+    } satisfies ExecutionLogMetadata & Record<string, unknown>;
+
+    appendMessage(sessionId, {
+      ...message,
+      metadata,
+    });
     // Update session message count
     set((s) => ({
       sessions: s.sessions.map((ses) =>

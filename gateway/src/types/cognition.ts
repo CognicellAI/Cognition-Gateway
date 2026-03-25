@@ -226,6 +226,17 @@ export interface InterruptState {
   message: string | null;
 }
 
+export interface DelegationEvent {
+  fromAgent: string;
+  toAgent: string;
+  task: string;
+  createdAt: string;
+}
+
+export interface ExecutionLogMetadata {
+  delegations?: DelegationEvent[];
+}
+
 export interface ToolInfo {
   name: string;
   description: string | null;
