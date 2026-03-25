@@ -129,111 +129,115 @@ export function Sidebar({ sessions, loading, isAdmin, onNewChat, onDeleteSession
         </Tooltip>
       </div>
 
-      {/* Session List */}
-      <ScrollArea className="flex-1 px-2">
-        {loading ? (
-          <div className="space-y-1 py-2">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-8 w-full rounded" />
-            ))}
-          </div>
-        ) : (
-          <div className="space-y-0.5 py-2">
-            {sessions.map((session) => (
-                <SessionItem
-                  key={session.id}
-                  session={session}
-                  active={session.id === activeSessionId || pathname === `/chat/${session.id}`}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-t">
+        <ScrollArea className="flex-1 min-h-0">
+          <div className="space-y-3 p-2">
+            <div>
+              {loading ? (
+                <div className="space-y-1 py-2">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <Skeleton key={i} className="h-8 w-full rounded" />
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-0.5 py-2">
+                  {sessions.map((session) => (
+                    <SessionItem
+                      key={session.id}
+                      session={session}
+                      active={session.id === activeSessionId || pathname === `/chat/${session.id}`}
+                      collapsed={!sidebarOpen}
+                      onDelete={onDeleteSession}
+                      onRename={onRenameSession}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-0.5">
+              {sidebarOpen && (
+                <p className="px-2 py-1 text-xs font-medium text-muted-foreground/60 uppercase tracking-wide">
+                  Server
+                </p>
+              )}
+              {NAV_ITEMS.map((item) => (
+                <NavLink
+                  key={item.href}
+                  item={item}
+                  active={pathname.startsWith(item.href)}
                   collapsed={!sidebarOpen}
-                  onDelete={onDeleteSession}
-                  onRename={onRenameSession}
                 />
               ))}
+
+              {visibleAdmin.length > 0 && (
+                <>
+                  {sidebarOpen && <Separator className="my-1" />}
+                  {!sidebarOpen && <div className="py-0.5" />}
+                  {visibleAdmin.map((item) => (
+                    <NavLink
+                      key={item.href}
+                      item={item}
+                      active={pathname.startsWith(item.href)}
+                      collapsed={!sidebarOpen}
+                    />
+                  ))}
+                </>
+              )}
+
+              <Separator className="my-1" />
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={pathname === "/settings" || pathname.startsWith("/settings/") ? "secondary" : "ghost"}
+                    size={sidebarOpen ? "default" : "icon"}
+                    className="w-full justify-start"
+                    asChild
+                  >
+                    <Link href="/settings">
+                      <SettingsIcon className="h-4 w-4 shrink-0" />
+                      {sidebarOpen && <span className="ml-2">Settings</span>}
+                    </Link>
+                  </Button>
+                </TooltipTrigger>
+                {!sidebarOpen && <TooltipContent side="right">Settings</TooltipContent>}
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={pathname === "/settings/api-keys" ? "secondary" : "ghost"}
+                    size={sidebarOpen ? "default" : "icon"}
+                    className="w-full justify-start"
+                    asChild
+                  >
+                    <Link href="/settings/api-keys">
+                      <KeyRoundIcon className="h-4 w-4 shrink-0" />
+                      {sidebarOpen && <span className="ml-2">API Keys</span>}
+                    </Link>
+                  </Button>
+                </TooltipTrigger>
+                {!sidebarOpen && <TooltipContent side="right">API Keys</TooltipContent>}
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size={sidebarOpen ? "default" : "icon"}
+                    className="w-full justify-start text-muted-foreground"
+                    onClick={() => signOut({ callbackUrl: "/login" })}
+                  >
+                    <LogOutIcon className="h-4 w-4 shrink-0" />
+                    {sidebarOpen && <span className="ml-2">Sign out</span>}
+                  </Button>
+                </TooltipTrigger>
+                {!sidebarOpen && <TooltipContent side="right">Sign out</TooltipContent>}
+              </Tooltip>
+            </div>
           </div>
-        )}
-      </ScrollArea>
-
-      {/* Navigation Section */}
-      <div className="border-t p-2 space-y-0.5">
-        {sidebarOpen && (
-          <p className="px-2 py-1 text-xs font-medium text-muted-foreground/60 uppercase tracking-wide">
-            Server
-          </p>
-        )}
-        {NAV_ITEMS.map((item) => (
-          <NavLink
-            key={item.href}
-            item={item}
-            active={pathname.startsWith(item.href)}
-            collapsed={!sidebarOpen}
-          />
-        ))}
-
-        {visibleAdmin.length > 0 && (
-          <>
-            {sidebarOpen && <Separator className="my-1" />}
-            {!sidebarOpen && <div className="py-0.5" />}
-            {visibleAdmin.map((item) => (
-              <NavLink
-                key={item.href}
-                item={item}
-                active={pathname.startsWith(item.href)}
-                collapsed={!sidebarOpen}
-              />
-            ))}
-          </>
-        )}
-
-        <Separator className="my-1" />
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant={pathname === "/settings" || pathname.startsWith("/settings/") ? "secondary" : "ghost"}
-              size={sidebarOpen ? "default" : "icon"}
-              className="w-full justify-start"
-              asChild
-            >
-              <Link href="/settings">
-                <SettingsIcon className="h-4 w-4 shrink-0" />
-                {sidebarOpen && <span className="ml-2">Settings</span>}
-              </Link>
-            </Button>
-          </TooltipTrigger>
-          {!sidebarOpen && <TooltipContent side="right">Settings</TooltipContent>}
-        </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant={pathname === "/settings/api-keys" ? "secondary" : "ghost"}
-              size={sidebarOpen ? "default" : "icon"}
-              className="w-full justify-start"
-              asChild
-            >
-              <Link href="/settings/api-keys">
-                <KeyRoundIcon className="h-4 w-4 shrink-0" />
-                {sidebarOpen && <span className="ml-2">API Keys</span>}
-              </Link>
-            </Button>
-          </TooltipTrigger>
-          {!sidebarOpen && <TooltipContent side="right">API Keys</TooltipContent>}
-        </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size={sidebarOpen ? "default" : "icon"}
-              className="w-full justify-start text-muted-foreground"
-              onClick={() => signOut({ callbackUrl: "/login" })}
-            >
-              <LogOutIcon className="h-4 w-4 shrink-0" />
-              {sidebarOpen && <span className="ml-2">Sign out</span>}
-            </Button>
-          </TooltipTrigger>
-          {!sidebarOpen && <TooltipContent side="right">Sign out</TooltipContent>}
-        </Tooltip>
+        </ScrollArea>
       </div>
     </aside>
   );
