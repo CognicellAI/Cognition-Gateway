@@ -130,3 +130,15 @@ export function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
   const Renderer = toolRenderers[toolCall.name] ?? GenericToolCard;
   return <Renderer toolCall={toolCall} />;
 }
+
+export function getToolDisplayName(toolCall: ToolCall): string {
+  return deriveToolDisplayName(toolCall);
+}
+
+export function getToolResultSummary(toolCall: ToolCall): string | undefined {
+  const taskSummary = toolCall.name === "task" && typeof toolCall.output === "string"
+    ? extractTaskSummary(toolCall.output)
+    : undefined;
+
+  return taskSummary ?? summarizeOutput(toolCall.output);
+}

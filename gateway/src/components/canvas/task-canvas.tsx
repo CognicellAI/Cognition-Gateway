@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { getToolDisplayName, getToolResultSummary } from "@/components/tool-renderers/tool-call-card";
 import { useChatStore } from "@/hooks/use-chat-store";
 import { cn } from "@/lib/utils";
 import type { ToolCall, Todo } from "@/types/cognition";
@@ -240,7 +241,7 @@ function ToolCallRow({
       {/* Tool name + status */}
       <div className="flex items-center gap-1.5">
         <TerminalIcon className="h-3 w-3 shrink-0 text-muted-foreground" />
-        <span className="font-semibold">{toolCall.name}</span>
+        <span className="font-semibold">{getToolDisplayName(toolCall)}</span>
         {isRunning && (
           <LoaderIcon className="h-3 w-3 text-muted-foreground animate-spin ml-auto" />
         )}
@@ -258,7 +259,7 @@ function ToolCallRow({
       )}
 
       {/* Output summary */}
-      {outputSummary && (
+      {(getToolResultSummary(toolCall) ?? outputSummary) && (
         <p
           className={cn(
             "mt-0.5 truncate",
@@ -268,7 +269,7 @@ function ToolCallRow({
           {isError && toolCall.exit_code !== undefined && (
             <span className="text-destructive mr-1">exit {toolCall.exit_code}</span>
           )}
-          {outputSummary}
+          {getToolResultSummary(toolCall) ?? outputSummary}
         </p>
       )}
     </div>
