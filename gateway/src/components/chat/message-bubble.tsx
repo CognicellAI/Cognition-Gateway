@@ -6,7 +6,7 @@ import remarkGfm from "remark-gfm";
 import { ToolCallCard } from "@/components/tool-renderers/tool-call-card";
 import { PlanningView } from "@/components/chat/planning-view";
 import { cn } from "@/lib/utils";
-import type { DelegationEvent, MessageResponse, ToolCall, Todo } from "@/types/cognition";
+import type { DelegationEvent, ExecutionLogMetadata, MessageResponse, ToolCall, Todo } from "@/types/cognition";
 import type { InterruptState } from "@/types/cognition";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,6 +18,8 @@ interface MessageBubbleProps {
 
 export function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.role === "user";
+  const metadata = (message.metadata ?? {}) as ExecutionLogMetadata;
+  const persistedDelegations = metadata.delegations ?? [];
 
   return (
     <div className={cn("flex w-full", isUser ? "justify-end" : "justify-start")}>
@@ -47,6 +49,24 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                 key={tc.id}
                 toolCall={{ ...tc, args: tc.args as Record<string, unknown> }}
               />
+            ))}
+          </div>
+        )}
+
+        {!isUser && persistedDelegations.length > 0 && (
+          <div className="space-y-2 mt-2 rounded-md border bg-muted/30 p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Delegation Activity
+            </p>
+            {persistedDelegations.map((delegation, index) => (
+              <div key={`${delegation.createdAt}-${index}`} className="rounded-md border bg-background/80 p-2 text-sm">
+                <p>
+                  <span className="font-medium">{delegation.fromAgent}</span>
+                  {" delegated to "}
+                  <span className="font-medium">{delegation.toAgent}</span>
+                </p>
+                <p className="mt-1 text-muted-foreground">{delegation.task}</p>
+              </div>
             ))}
           </div>
         )}

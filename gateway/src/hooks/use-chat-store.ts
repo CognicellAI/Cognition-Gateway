@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type {
+  ExecutionLogMetadata,
   SessionSummary,
   MessageResponse,
   ToolCall,
@@ -311,7 +312,16 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   finalizeStream: (sessionId, message) => {
     const { appendMessage, clearStream } = get();
-    appendMessage(sessionId, message);
+    const stream = get().streams.get(sessionId) ?? defaultStreamState();
+    const metadata = {
+      ...(message.metadata ?? {}),
+      ...(stream.delegations.length > 0 ? { delegations: stream.delegations } : {}),
+    } satisfies ExecutionLogMetadata & Record<string, unknown>;
+
+    appendMessage(sessionId, {
+      ...message,
+      metadata,
+    });
     // Update session message count
     set((s) => ({
       sessions: s.sessions.map((ses) =>

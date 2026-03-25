@@ -233,6 +233,10 @@ export interface DelegationEvent {
   createdAt: string;
 }
 
+export interface ExecutionLogMetadata {
+  delegations?: DelegationEvent[];
+}
+
 export interface ToolInfo {
   name: string;
   description: string | null;
