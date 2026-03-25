@@ -7,6 +7,7 @@ import type {
   Todo,
   InterruptState,
   DelegationEvent,
+  PersistedToolOutput,
 } from "@/types/cognition";
 
 export interface Artifact {
@@ -29,6 +30,65 @@ export interface StreamState {
   currentStepIndex: number; // tracks which plan step is active for tool call association
   interrupt: InterruptState | null;
   delegations: DelegationEvent[];
+}
+
+function extractTaskResultSummary(output: string | undefined): string | undefined {
+  if (!output) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(output) as { final_message?: unknown };
+    if (typeof parsed.final_message === "string" && parsed.final_message.trim().length > 0) {
+      return parsed.final_message.trim();
+    }
+  } catch {
+    // Ignore non-JSON task outputs.
+  }
+
+  return undefined;
+}
+
+function deriveToolDisplayName(toolCall: ToolCall): string | undefined {
+  if (toolCall.name !== "task") {
+    return undefined;
+  }
+
+  const subagentType = toolCall.args.subagent_type;
+  if (typeof subagentType === "string" && subagentType.trim().length > 0) {
+    return subagentType.trim();
+  }
+
+  return "subagent";
+}
+
+function buildPersistedToolOutput(toolCall: ToolCall): PersistedToolOutput {
+  return {
+    id: toolCall.id,
+    output: toolCall.output,
+    exit_code: toolCall.exit_code,
+    result_summary: toolCall.name === "task"
+      ? extractTaskResultSummary(toolCall.output)
+      : toolCall.output,
+    display_name: deriveToolDisplayName(toolCall),
+  };
+}
+
+function buildExecutionMetadata(
+  message: MessageResponse,
+  stream: StreamState,
+): ExecutionLogMetadata & Record<string, unknown> {
+  const baseMetadata = { ...(message.metadata ?? {}) };
+  const delegations = stream.delegations.length > 0 ? { delegations: stream.delegations } : {};
+  const toolOutputs = stream.toolCalls
+    .filter((toolCall) => toolCall.output !== undefined)
+    .map(buildPersistedToolOutput);
+
+  return {
+    ...baseMetadata,
+    ...delegations,
+    ...(toolOutputs.length > 0 ? { tool_outputs: toolOutputs } : {}),
+  };
 }
 
 interface Notification {
@@ -313,10 +373,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   finalizeStream: (sessionId, message) => {
     const { appendMessage, clearStream } = get();
     const stream = get().streams.get(sessionId) ?? defaultStreamState();
-    const metadata = {
-      ...(message.metadata ?? {}),
-      ...(stream.delegations.length > 0 ? { delegations: stream.delegations } : {}),
-    } satisfies ExecutionLogMetadata & Record<string, unknown>;
+    const metadata = buildExecutionMetadata(message, stream);
 
     appendMessage(sessionId, {
       ...message,

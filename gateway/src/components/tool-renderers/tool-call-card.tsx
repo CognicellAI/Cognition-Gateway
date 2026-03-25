@@ -17,6 +17,11 @@ function GenericToolCard({ toolCall }: GenericToolCardProps) {
   const [expanded, setExpanded] = useState(false);
   const hasOutput = toolCall.output !== undefined;
   const failed = hasOutput && toolCall.exit_code !== 0;
+  const taskSummary = toolCall.name === "task" && typeof toolCall.output === "string"
+    ? extractTaskSummary(toolCall.output)
+    : undefined;
+  const summary = taskSummary ?? summarizeOutput(toolCall.output);
+  const displayName = deriveToolDisplayName(toolCall);
 
   return (
     <div className="rounded-md border bg-muted/50 text-sm overflow-hidden">
@@ -26,7 +31,8 @@ function GenericToolCard({ toolCall }: GenericToolCardProps) {
         aria-expanded={expanded}
       >
         <TerminalIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-        <span className="font-mono font-medium text-xs truncate">{toolCall.name}</span>
+        <span className="font-mono font-medium text-xs truncate">{displayName}</span>
+        {summary && <span className="text-xs text-muted-foreground truncate max-w-[16rem]">{summary}</span>}
 
         {toolCall.streaming && !hasOutput && (
           <Badge variant="secondary" className="ml-auto text-xs">running</Badge>
@@ -74,6 +80,50 @@ function GenericToolCard({ toolCall }: GenericToolCardProps) {
       )}
     </div>
   );
+}
+
+function deriveToolDisplayName(toolCall: ToolCall): string {
+  if (toolCall.name !== "task") {
+    return toolCall.name;
+  }
+
+  const explicitName = toolCall.args.display_name;
+  if (typeof explicitName === "string" && explicitName.trim().length > 0) {
+    return explicitName.trim();
+  }
+
+  const subagentType = toolCall.args.subagent_type;
+  if (typeof subagentType === "string" && subagentType.trim().length > 0) {
+    return subagentType.trim();
+  }
+
+  return "subagent";
+}
+
+function extractTaskSummary(output: string): string | undefined {
+  try {
+    const parsed = JSON.parse(output) as { final_message?: unknown };
+    if (typeof parsed.final_message === "string" && parsed.final_message.trim().length > 0) {
+      return parsed.final_message.trim();
+    }
+  } catch {
+    return summarizeOutput(output);
+  }
+
+  return undefined;
+}
+
+function summarizeOutput(output: string | undefined): string | undefined {
+  if (!output) {
+    return undefined;
+  }
+
+  const compact = output.replace(/\s+/g, " ").trim();
+  if (compact.length === 0) {
+    return undefined;
+  }
+
+  return compact.length > 120 ? `${compact.slice(0, 117)}...` : compact;
 }
 
 export function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {

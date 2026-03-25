@@ -21,6 +21,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.role === "user";
   const metadata = (message.metadata ?? {}) as ExecutionLogMetadata;
   const persistedDelegations = metadata.delegations ?? [];
+  const persistedToolOutputs = new Map((metadata.tool_outputs ?? []).map((entry) => [entry.id, entry]));
   const hasExecutionLog = !isUser && ((message.tool_calls?.length ?? 0) > 0 || persistedDelegations.length > 0);
   const [executionLogExpanded, setExecutionLogExpanded] = useState(false);
   const executionLogSectionCount = (persistedDelegations.length > 0 ? 1 : 0) + ((message.tool_calls?.length ?? 0) > 0 ? 1 : 0);
@@ -97,12 +98,25 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                       Tool Calls
                     </p>
                     <div className="space-y-1.5">
-                      {message.tool_calls.map((tc) => (
-                        <ToolCallCard
-                          key={tc.id}
-                          toolCall={{ ...tc, args: tc.args as Record<string, unknown> }}
-                        />
-                      ))}
+                      {message.tool_calls.map((tc) => {
+                        const persisted = persistedToolOutputs.get(tc.id);
+                        const args = {
+                          ...(tc.args as Record<string, unknown>),
+                          ...(persisted?.display_name ? { display_name: persisted.display_name } : {}),
+                        };
+
+                        return (
+                          <ToolCallCard
+                            key={tc.id}
+                            toolCall={{
+                              ...tc,
+                              args,
+                              output: persisted?.result_summary ?? persisted?.output,
+                              exit_code: persisted?.exit_code,
+                            }}
+                          />
+                        );
+                      })}
                     </div>
                   </div>
                 )}
