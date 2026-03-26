@@ -21,6 +21,7 @@ model User {
   sessions      Session[]
   apiKeys       ApiKey[]
   webhooks      Webhook[]
+  workspaceBindings WorkspaceBinding[]
 }
 
 model Account {
@@ -186,4 +187,22 @@ model AuditLog {
   details    String?                        // JSON string with extra context
   ip         String?
   createdAt  DateTime @default(now())
+}
+
+model WorkspaceBinding {
+  id            String   @id @default(cuid())
+  userId        String
+  scopeType     String
+  scopeKey      String
+  workspacePath String
+  repoRoot      String?
+  defaultBranch String?
+  envProfile    String?
+  enabled       Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@unique([userId, scopeType, scopeKey])
 }

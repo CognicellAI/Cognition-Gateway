@@ -64,6 +64,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/cron", label: "Cron", icon: CalendarClockIcon },
   { href: "/webhooks", label: "Webhooks", icon: WebhookIcon },
   { href: "/integrations", label: "Integrations", icon: GithubIcon },
+  { href: "/workspace-bindings", label: "Workspace Bindings", icon: GithubIcon },
   { href: "/activity", label: "Activity", icon: ActivityIcon },
   { href: "/approvals", label: "Approvals", icon: ShieldAlertIcon },
 ];
