@@ -151,8 +151,16 @@ export async function consumeCognitionStream(response: Response): Promise<Dispat
             assistant_data?: { content?: string };
             input_tokens?: number;
             output_tokens?: number;
+            usage?: {
+              input_tokens?: number;
+              output_tokens?: number;
+            };
           };
           assistant_data?: { content?: string };
+          usage?: {
+            input_tokens?: number;
+            output_tokens?: number;
+          };
         };
 
         const eventName =
@@ -164,8 +172,11 @@ export async function consumeCognitionStream(response: Response): Promise<Dispat
         }
 
         if (eventName === "usage") {
+          const nestedUsage = payload.data?.usage;
+          const directUsage = payload.usage;
           tokenUsage =
-            (payload.data?.input_tokens ?? 0) + (payload.data?.output_tokens ?? 0);
+            (nestedUsage?.input_tokens ?? payload.data?.input_tokens ?? directUsage?.input_tokens ?? 0) +
+            (nestedUsage?.output_tokens ?? payload.data?.output_tokens ?? directUsage?.output_tokens ?? 0);
         }
 
         if (!output && eventName === "done" && typeof payload.assistant_data?.content === "string") {

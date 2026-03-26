@@ -50,6 +50,25 @@ describe("dispatch helpers", () => {
     });
   });
 
+  it("parses usage when Cognition nests token counts under usage", async () => {
+    const response = createSseResponse([
+      'event: usage',
+      'data: {"data":{"usage":{"input_tokens":9,"output_tokens":21}}}',
+      "",
+      'event: done',
+      'data: {"assistant_data":{"content":"Nested usage answer"}}',
+      "",
+    ].join("\n"));
+
+    const result = await consumeCognitionStream(response);
+
+    expect(result).toEqual({
+      output: "Nested usage answer",
+      tokenUsage: 30,
+      doneReceived: true,
+    });
+  });
+
   it("adds scope header when creating a Cognition session", async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(JSON.stringify({ id: "session-1" }), {
