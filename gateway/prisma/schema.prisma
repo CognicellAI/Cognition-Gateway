@@ -202,7 +202,24 @@ model WorkspaceBinding {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  runtimeBindings RuntimeBinding[]
 
   @@index([userId])
   @@unique([userId, scopeType, scopeKey])
+}
+
+model RuntimeBinding {
+  id                String   @id @default(cuid())
+  workspaceBindingId String
+  runtimeType       String
+  connectionConfig  String   @default("{}")
+  lifecyclePolicy   String   @default("{}")
+  executionPolicy   String   @default("{}")
+  capabilities      String   @default("[]")
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  workspaceBinding  WorkspaceBinding @relation(fields: [workspaceBindingId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceBindingId])
 }
