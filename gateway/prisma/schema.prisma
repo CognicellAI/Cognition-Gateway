@@ -110,6 +110,8 @@ model DispatchRule {
   integrationType   String   // e.g. github
   eventType         String   // e.g. pull_request
   actionFilter      String?  // e.g. opened, synchronize
+  resourceType      String?  // e.g. issue, pull_request, incident
+  runIntent         String?  // e.g. triage, investigate, implement, review, notify
   agentName         String
   promptTemplate    String
   contextKeyTemplate String?

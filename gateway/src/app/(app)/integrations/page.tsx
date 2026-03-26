@@ -19,6 +19,8 @@ interface DispatchRule {
   integrationType: string;
   eventType: string;
   actionFilter: string | null;
+  resourceType: string | null;
+  runIntent: string | null;
   agentName: string;
   promptTemplate: string;
   contextKeyTemplate: string | null;
@@ -31,6 +33,8 @@ interface DispatchRuleFormState {
   integrationType: "github";
   eventType: string;
   actionFilter: string;
+  resourceType: string;
+  runIntent: "triage" | "investigate" | "implement" | "review" | "notify";
   agentName: string;
   promptTemplate: string;
   contextKeyTemplate: string;
@@ -43,6 +47,8 @@ const EMPTY_RULE: DispatchRuleFormState = {
   integrationType: "github",
   eventType: "pull_request",
   actionFilter: "opened",
+  resourceType: "pull_request",
+  runIntent: "review",
   agentName: "default",
   promptTemplate: "Review GitHub event: {{body}}",
   contextKeyTemplate: "{{repository.full_name}}:pull_request:{{pull_request.number}}",
@@ -93,6 +99,8 @@ export default function IntegrationsPage() {
       const payload = {
         ...form,
         actionFilter: form.actionFilter.trim() || undefined,
+        resourceType: form.resourceType.trim() || undefined,
+        runIntent: form.runIntent,
         agentName: form.agentName.trim(),
         promptTemplate: form.promptTemplate.trim(),
         contextKeyTemplate: form.contextKeyTemplate.trim() || undefined,
@@ -189,6 +197,8 @@ export default function IntegrationsPage() {
                   <Badge variant="outline">{rule.integrationType}</Badge>
                   <Badge variant="secondary">{rule.eventType}</Badge>
                   {rule.actionFilter && <Badge>{rule.actionFilter}</Badge>}
+                  {rule.resourceType && <Badge variant="outline">{rule.resourceType}</Badge>}
+                  {rule.runIntent && <Badge>{rule.runIntent}</Badge>}
                 </div>
                 <CardDescription>
                   Agent: <span className="font-mono">{rule.agentName}</span>
@@ -219,7 +229,7 @@ export default function IntegrationsPage() {
               <Input id="rule-name" value={form.name} onChange={(e) => updateTextField(setForm, "name", e.target.value)} />
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-4">
               <div className="space-y-1.5">
                 <Label>Integration</Label>
                 <Select value={form.integrationType} onValueChange={(value) => updateTextField(setForm, "integrationType", value as DispatchRuleFormState["integrationType"])}>
@@ -239,6 +249,25 @@ export default function IntegrationsPage() {
                 <Label htmlFor="rule-action">Action filter</Label>
                 <Input id="rule-action" value={form.actionFilter} onChange={(e) => updateTextField(setForm, "actionFilter", e.target.value)} />
               </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="rule-resource">Resource type</Label>
+                <Input id="rule-resource" value={form.resourceType} onChange={(e) => updateTextField(setForm, "resourceType", e.target.value)} />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Run intent</Label>
+              <Select value={form.runIntent} onValueChange={(value) => updateTextField(setForm, "runIntent", value as DispatchRuleFormState["runIntent"])}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="triage">triage</SelectItem>
+                  <SelectItem value="investigate">investigate</SelectItem>
+                  <SelectItem value="implement">implement</SelectItem>
+                  <SelectItem value="review">review</SelectItem>
+                  <SelectItem value="notify">notify</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1.5">

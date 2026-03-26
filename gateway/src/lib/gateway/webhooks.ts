@@ -77,6 +77,7 @@ export function renderDispatchRuleTemplate(template: string, body: unknown): str
 interface NormalizedIntegrationEvent {
   integrationType: "github";
   eventType: string;
+  resourceType: string;
   action: string | null;
   body: unknown;
 }
@@ -136,6 +137,7 @@ function normalizeGitHubEvent(
   return {
     integrationType: "github",
     eventType,
+    resourceType: eventType,
     action,
     body,
   };
@@ -295,6 +297,7 @@ export async function handleWebhookInvocation(
         webhookName: webhook.name,
         integrationType: webhook.integrationType,
         eventType: normalizedEvent?.eventType ?? eventHeader ?? null,
+        resourceType: normalizedEvent?.resourceType ?? null,
         action: normalizedEvent?.action ?? null,
         unmatched: true,
       },
@@ -335,6 +338,8 @@ export async function handleWebhookInvocation(
         webhookName: webhook.name,
         title: matchedRule ? `GitHub: ${matchedRule.name}` : `Webhook: ${webhook.name}`,
         agentName: matchedRule?.agentName ?? webhook.agentName,
+        runIntent: matchedRule?.runIntent ?? null,
+        resourceType: matchedRule?.resourceType ?? normalizedEvent?.resourceType ?? null,
         sessionMode: webhook.sessionMode,
         approvalMode: webhook.approvalMode,
         sourceIp,
