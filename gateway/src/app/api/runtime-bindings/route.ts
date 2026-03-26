@@ -14,6 +14,16 @@ const runtimeBindingSchema = z.object({
   enabled: z.boolean().default(true),
 });
 
+function normalizeCapabilities(runtimeType: z.infer<typeof runtimeBindingSchema>["runtimeType"], capabilities: string[]): string[] {
+  const uniqueCapabilities = Array.from(new Set(capabilities));
+
+  if (runtimeType === "docker_compose") {
+    return uniqueCapabilities.filter((capability) => capability !== "start" && capability !== "stop");
+  }
+
+  return uniqueCapabilities;
+}
+
 export async function GET(): Promise<NextResponse> {
   const session = await auth();
   if (!session?.user?.id) {
@@ -68,7 +78,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       connectionConfig: JSON.stringify(parsed.data.connectionConfig),
       lifecyclePolicy: JSON.stringify(parsed.data.lifecyclePolicy),
       executionPolicy: JSON.stringify(parsed.data.executionPolicy),
-      capabilities: JSON.stringify(parsed.data.capabilities),
+      capabilities: JSON.stringify(normalizeCapabilities(parsed.data.runtimeType, parsed.data.capabilities)),
       enabled: parsed.data.enabled,
     },
     include: {
