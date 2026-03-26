@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useCallback, useState } from "react";
-import { SendIcon, SquareIcon, BotIcon, RefreshCwIcon } from "lucide-react";
+import Link from "next/link";
+import { SendIcon, SquareIcon, BotIcon, RefreshCwIcon, ExternalLinkIcon, Layers3Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,7 +16,7 @@ import { ArtifactShelf } from "@/components/shelf/artifact-shelf";
 import { ModelPicker } from "@/components/chat/model-picker";
 import { useChatStore } from "@/hooks/use-chat-store";
 import { useChatStream } from "@/hooks/use-chat-stream";
-import type { AgentResponse, MessageResponse, ProviderResponse } from "@/types/cognition";
+import type { AgentResponse, MessageResponse, ProviderResponse, SessionIssueContext } from "@/types/cognition";
 
 interface ChatViewProps {
   sessionId: string;
@@ -29,6 +32,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
   const [messagesLoading, setMessagesLoading] = useState(true);
   const [messagesError, setMessagesError] = useState<string | null>(null);
   const [lastUserContent, setLastUserContent] = useState<string | null>(null);
+  const [issueContext, setIssueContext] = useState<SessionIssueContext | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -79,11 +83,13 @@ export function ChatView({ sessionId }: ChatViewProps) {
           const data = await msgsRes.json();
           setMessages(sessionId, data.messages ?? []);
           setMessagesError(null);
+          setIssueContext(extractIssueContext(data.messages ?? [], sessionId));
         } else if (msgsRes.status === 404) {
           const reconstructed = await reconstructMessagesFromActivity(sessionId);
           if (reconstructed.length > 0) {
             setMessages(sessionId, reconstructed);
             setMessagesError(null);
+            setIssueContext(extractIssueContext(reconstructed, sessionId));
           }
         } else {
           setMessagesError(`Failed to load messages (${msgsRes.status})`);
@@ -173,6 +179,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
       <div className="flex-1 min-h-0">
       <ScrollArea className="h-full px-4 py-4">
         <div className="mx-auto max-w-3xl space-y-4">
+          {issueContext && <IssueWorkbenchHeader context={issueContext} />}
           {messagesLoading ? (
             <div className="space-y-3">
               {Array.from({ length: 3 }).map((_, i) => (
@@ -304,6 +311,75 @@ export function ChatView({ sessionId }: ChatViewProps) {
       {/* Task Canvas — sibling to conversation column */}
       <TaskCanvas sessionId={sessionId} />
     </div>
+  );
+}
+
+function extractIssueContext(messages: MessageResponse[], sessionId: string): SessionIssueContext | null {
+  for (const message of messages) {
+    const metadata = message.metadata;
+    if (!metadata || typeof metadata !== "object") {
+      continue;
+    }
+
+    const sourceType = typeof metadata.sourceType === "string" ? metadata.sourceType : null;
+    if (sourceType !== "webhook") {
+      continue;
+    }
+
+    return {
+      sourceType,
+      sourceId: typeof metadata.sourceId === "string" ? metadata.sourceId : "",
+      title: typeof metadata.title === "string" ? metadata.title : null,
+      runIntent: typeof metadata.runIntent === "string" ? metadata.runIntent : null,
+      resourceType: typeof metadata.resourceType === "string" ? metadata.resourceType : null,
+      dispatchRuleId: typeof metadata.dispatchRuleId === "string" ? metadata.dispatchRuleId : null,
+      workspaceScopeKey: typeof metadata.scopeKey === "string" ? metadata.scopeKey : null,
+      runtimeType: typeof metadata.runtimeType === "string" ? metadata.runtimeType : null,
+      activityRunId: sessionId,
+    };
+  }
+
+  return null;
+}
+
+function IssueWorkbenchHeader({ context }: { context: SessionIssueContext }) {
+  return (
+    <Card className="border-border/70 bg-muted/20">
+      <CardContent className="flex flex-col gap-3 p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline">{context.sourceType}</Badge>
+          {context.resourceType && <Badge variant="secondary">{context.resourceType}</Badge>}
+          {context.runIntent && <Badge>{context.runIntent}</Badge>}
+          {context.dispatchRuleId && <Badge variant="outline">rule {context.dispatchRuleId}</Badge>}
+        </div>
+
+        <div>
+          <p className="text-sm font-medium">{context.title ?? "Issue work session"}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            This session is tied to a routed integration event and can be used as the interactive workbench for triage or follow-on implementation.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          {context.workspaceScopeKey && (
+            <span className="inline-flex items-center gap-1 rounded-full border px-2 py-1">
+              <Layers3Icon className="h-3 w-3" />
+              {context.workspaceScopeKey}
+            </span>
+          )}
+          {context.runtimeType && (
+            <span className="inline-flex items-center gap-1 rounded-full border px-2 py-1">
+              runtime: {context.runtimeType}
+            </span>
+          )}
+          {context.activityRunId && (
+            <Link href={`/activity`} className="inline-flex items-center gap-1 rounded-full border px-2 py-1 hover:bg-muted/50">
+              Activity <ExternalLinkIcon className="h-3 w-3" />
+            </Link>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
