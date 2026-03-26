@@ -198,7 +198,7 @@ export default function RuntimeBindingsPage() {
         <CardHeader>
           <CardTitle className="text-base">Capability-driven runtime bindings</CardTitle>
           <CardDescription>
-            Runtime bindings keep the platform deployment-agnostic by describing capabilities like health checks, logs, restart behavior, and execution policy instead of hardcoding Docker Compose commands into the core workflow model.
+            Runtime bindings describe local runtime hints and safety policy for a workspace. Gateway records the environment shape here, while the agent uses local repo files, tools, and shell access to actually operate against it.
           </CardDescription>
         </CardHeader>
       </Card>
