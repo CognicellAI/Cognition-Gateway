@@ -63,6 +63,18 @@ export interface MessageResponse {
   metadata: Record<string, unknown> | null;
 }
 
+export interface SessionIssueContext {
+  sourceType: string;
+  sourceId: string;
+  title: string | null;
+  runIntent: string | null;
+  resourceType: string | null;
+  dispatchRuleId: string | null;
+  workspaceScopeKey: string | null;
+  runtimeType: string | null;
+  activityRunId: string | null;
+}
+
 export interface MessageList {
   messages: MessageResponse[];
   total: number;
