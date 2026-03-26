@@ -56,6 +56,21 @@ const EMPTY_RULE: DispatchRuleFormState = {
   enabled: true,
 };
 
+const ISSUE_TRIAGE_RULE: DispatchRuleFormState = {
+  name: "GitHub issue triage",
+  integrationType: "github",
+  eventType: "issues",
+  actionFilter: "opened",
+  resourceType: "issues",
+  runIntent: "triage",
+  agentName: "default",
+  promptTemplate:
+    "Triage GitHub issue #{{issue.number}} in {{repository.full_name}} titled \"{{issue.title}}\". Summarize the problem, identify likely subsystem ownership, assess reproducibility from the issue body, and recommend the next action. Issue body: {{issue.body}}",
+  contextKeyTemplate: "{{repository.full_name}}:issues:{{issue.number}}",
+  approvalMode: "none",
+  enabled: true,
+};
+
 function updateTextField<T extends keyof DispatchRuleFormState>(
   setForm: React.Dispatch<React.SetStateAction<DispatchRuleFormState>>,
   key: T,
@@ -125,6 +140,11 @@ export default function IntegrationsPage() {
     }
   }
 
+  function applyIssueTriagePreset(): void {
+    setForm(ISSUE_TRIAGE_RULE);
+    setDialogOpen(true);
+  }
+
   return (
     <PageContent contentClassName="max-w-5xl space-y-6">
       <div className="flex items-center justify-between">
@@ -132,7 +152,10 @@ export default function IntegrationsPage() {
           <h1 className="text-2xl font-bold">Integrations</h1>
           <p className="mt-1 text-muted-foreground">Define dispatch rules for GitHub events using the unified automation pipeline.</p>
         </div>
-        <Button onClick={() => setDialogOpen(true)}>New dispatch rule</Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={applyIssueTriagePreset}>Issue triage preset</Button>
+          <Button onClick={() => setDialogOpen(true)}>New dispatch rule</Button>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -148,6 +171,7 @@ export default function IntegrationsPage() {
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
             Start by defining an event type, optional action filter, agent, prompt template, and context key template.
+            GitHub issue triage is available as a preset to speed up the first issue-to-session workflow.
           </CardContent>
         </Card>
 
