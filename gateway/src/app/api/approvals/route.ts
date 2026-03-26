@@ -18,7 +18,18 @@ export async function GET(): Promise<NextResponse> {
     take: 100,
   });
 
-  return NextResponse.json({ runs });
+  const enrichedRuns = runs.map((run) => {
+    const metadata = run.metadata ? JSON.parse(run.metadata) as Record<string, unknown> : null;
+    return {
+      ...run,
+      metadata,
+      runIntent: typeof metadata?.runIntent === "string" ? metadata.runIntent : null,
+      resourceType: typeof metadata?.resourceType === "string" ? metadata.resourceType : null,
+      workspaceScopeKey: typeof metadata?.scopeKey === "string" ? metadata.scopeKey : null,
+    };
+  });
+
+  return NextResponse.json({ runs: enrichedRuns });
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
