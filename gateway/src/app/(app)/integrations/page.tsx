@@ -186,7 +186,7 @@ export default function IntegrationsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            Rules currently route GitHub-style webhook payloads through shared prompt and context rendering. Integration auth and richer event normalization come next.
+            The current GitHub flow is the first recipe on top of a more general integration model. Future adapters should reuse the same resource, intent, and continuity concepts rather than re-implementing orchestration logic.
           </CardContent>
         </Card>
       </div>

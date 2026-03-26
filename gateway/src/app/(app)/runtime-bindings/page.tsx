@@ -201,6 +201,9 @@ export default function RuntimeBindingsPage() {
             Runtime bindings describe local runtime hints and safety policy for a workspace. Gateway records the environment shape here, while the agent uses local repo files, tools, and shell access to actually operate against it.
           </CardDescription>
         </CardHeader>
+        <CardContent className="text-sm text-muted-foreground">
+          This model is intentionally broader than Docker Compose. It should remain usable for future Kubernetes-backed environments and for integrations beyond GitHub.
+        </CardContent>
       </Card>
 
       {error && (

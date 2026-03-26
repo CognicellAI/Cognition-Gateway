@@ -170,6 +170,9 @@ export default function WorkspaceBindingsPage() {
             Workspace bindings tell Gateway where code lives for a scoped external resource. Runtime bindings and workflow recipes can build on top of this later.
           </CardDescription>
         </CardHeader>
+        <CardContent className="text-sm text-muted-foreground">
+          Designed to stay integration-agnostic: the same model should work for GitHub repos, Jira projects, or custom vendor resource scopes without changing the core schema.
+        </CardContent>
       </Card>
 
       {error && (
