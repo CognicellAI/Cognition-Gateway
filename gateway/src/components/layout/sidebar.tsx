@@ -65,6 +65,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/webhooks", label: "Webhooks", icon: WebhookIcon },
   { href: "/integrations", label: "Integrations", icon: GithubIcon },
   { href: "/workspace-bindings", label: "Workspace Bindings", icon: GithubIcon },
+  { href: "/runtime-bindings", label: "Runtime Bindings", icon: PlugZapIcon },
   { href: "/activity", label: "Activity", icon: ActivityIcon },
   { href: "/approvals", label: "Approvals", icon: ShieldAlertIcon },
 ];
