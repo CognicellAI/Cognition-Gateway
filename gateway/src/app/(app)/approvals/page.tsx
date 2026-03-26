@@ -12,6 +12,9 @@ interface ApprovalRun {
   sourceType: string;
   sourceId: string;
   status: string;
+   runIntent: string | null;
+   resourceType: string | null;
+   workspaceScopeKey: string | null;
   renderedPrompt: string | null;
   approvalReason: string | null;
   contextKey: string | null;
@@ -104,6 +107,8 @@ export default function ApprovalsPage() {
                     <div className="flex items-center gap-2">
                       <CardTitle className="text-base capitalize">{run.sourceType} approval</CardTitle>
                       <Badge>awaiting approval</Badge>
+                      {run.resourceType && <Badge variant="outline">{run.resourceType}</Badge>}
+                      {run.runIntent && <Badge variant="secondary">{run.runIntent}</Badge>}
                     </div>
                     <CardDescription className="mt-1">
                       Source ID {run.sourceId} · {new Date(run.startedAt).toLocaleString()}
@@ -117,6 +122,9 @@ export default function ApprovalsPage() {
                 )}
                 {run.contextKey && (
                   <p className="text-xs text-muted-foreground">Context: <span className="font-mono text-foreground">{run.contextKey}</span></p>
+                )}
+                {run.workspaceScopeKey && (
+                  <p className="text-xs text-muted-foreground">Workspace scope: <span className="font-mono text-foreground">{run.workspaceScopeKey}</span></p>
                 )}
                 {run.renderedPrompt && (
                   <div className="rounded-md bg-muted/40 p-3 text-sm whitespace-pre-wrap">
