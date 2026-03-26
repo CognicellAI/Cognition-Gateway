@@ -9,6 +9,8 @@ const createSchema = z.object({
   integrationType: z.enum(["github"]),
   eventType: z.string().min(1),
   actionFilter: z.string().min(1).optional(),
+  resourceType: z.string().min(1).optional(),
+  runIntent: z.enum(["triage", "investigate", "implement", "review", "notify"]).optional(),
   agentName: z.string().min(1),
   promptTemplate: z.string().min(1),
   contextKeyTemplate: z.string().min(1).optional(),
@@ -52,6 +54,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       integrationType: rule.integrationType,
       eventType: rule.eventType,
       actionFilter: rule.actionFilter,
+      resourceType: rule.resourceType,
+      runIntent: rule.runIntent,
     },
     ip: getIp(request),
   });
