@@ -64,11 +64,24 @@ export function AppShell({ children, role }: AppShellProps) {
   const [notifications, setNotifications] = useState<WsNotification[]>([]);
   const [unread, setUnread] = useState(0);
   const [bellOpen, setBellOpen] = useState(false);
+  const [wsConnected, setWsConnected] = useState(false);
 
   useEffect(() => {
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
     const ws = new WebSocket(`${protocol}://${window.location.host}/ws`);
     wsRef.current = ws;
+
+    ws.addEventListener("open", () => {
+      setWsConnected(true);
+    });
+
+    ws.addEventListener("close", () => {
+      setWsConnected(false);
+    });
+
+    ws.addEventListener("error", () => {
+      setWsConnected(false);
+    });
 
     ws.addEventListener("message", (evt) => {
       let data: Record<string, unknown>;
@@ -185,6 +198,7 @@ export function AppShell({ children, role }: AppShellProps) {
           onNewChat={handleNewChat}
           onDeleteSession={handleDeleteSession}
           onRenameSession={handleRenameSession}
+          onRetrySessions={fetchSessions}
           isAdmin={role === "admin"}
         />
         <div className="flex flex-1 flex-col overflow-hidden">
@@ -195,6 +209,9 @@ export function AppShell({ children, role }: AppShellProps) {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative h-8 w-8">
                   <BellIcon className="h-4 w-4" />
+                  {!wsConnected && (
+                    <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border border-background bg-muted-foreground" />
+                  )}
                   {unread > 0 && (
                     <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">
                       {unread > 9 ? "9+" : unread}

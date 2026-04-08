@@ -28,6 +28,7 @@ import {
   XIcon,
   LightbulbIcon,
   PlugZapIcon,
+  RefreshCcwIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -45,6 +46,7 @@ interface SidebarProps {
   onNewChat: () => void;
   onDeleteSession: (sessionId: string) => void;
   onRenameSession: (sessionId: string, title: string) => void;
+  onRetrySessions?: () => void;
 }
 
 interface NavItem {
@@ -75,7 +77,15 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
   { href: "/audit", label: "Audit Log", icon: ClipboardListIcon, adminOnly: true },
 ];
 
-export function Sidebar({ sessions, loading, isAdmin, onNewChat, onDeleteSession, onRenameSession }: SidebarProps) {
+export function Sidebar({
+  sessions,
+  loading,
+  isAdmin,
+  onNewChat,
+  onDeleteSession,
+  onRenameSession,
+  onRetrySessions,
+}: SidebarProps) {
   const pathname = usePathname();
   const { sidebarOpen, setSidebarOpen, activeSessionId } = useChatStore();
 
@@ -140,6 +150,16 @@ export function Sidebar({ sessions, loading, isAdmin, onNewChat, onDeleteSession
                   {Array.from({ length: 4 }).map((_, i) => (
                     <Skeleton key={i} className="h-8 w-full rounded" />
                   ))}
+                </div>
+              ) : sessions.length === 0 ? (
+                <div className="space-y-2 rounded-md border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
+                  <p>No chats yet.</p>
+                  {onRetrySessions && (
+                    <Button variant="ghost" size="sm" className="h-7 px-2" onClick={onRetrySessions}>
+                      <RefreshCcwIcon className="mr-1.5 h-3 w-3" />
+                      Retry
+                    </Button>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-0.5 py-2">
