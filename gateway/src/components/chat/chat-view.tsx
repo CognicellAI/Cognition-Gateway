@@ -188,7 +188,31 @@ export function ChatView({ sessionId }: ChatViewProps) {
             </div>
           ) : messagesError ? (
             <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              {messagesError}
+              <p>{messagesError}</p>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-3 h-8 gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/20"
+                onClick={() => {
+                  setMessagesLoading(true);
+                  setMessagesError(null);
+                  void (async () => {
+                    try {
+                      const res = await fetch(`/api/c/sessions/${sessionId}/messages?limit=100`);
+                      if (res.ok) {
+                        const data = await res.json();
+                        setMessages(sessionId, data.messages ?? []);
+                        setIssueContext(extractIssueContext(data.messages ?? [], sessionId));
+                      }
+                    } finally {
+                      setMessagesLoading(false);
+                    }
+                  })();
+                }}
+              >
+                <RefreshCwIcon className="h-3.5 w-3.5" />
+                Retry
+              </Button>
             </div>
           ) : messages.length === 0 && !isStreaming ? (
             <EmptyState agentName={selectedAgent} />

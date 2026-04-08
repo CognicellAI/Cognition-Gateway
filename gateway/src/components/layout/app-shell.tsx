@@ -227,7 +227,7 @@ export function AppShell({ children, role }: AppShellProps) {
                           {n.href ? (
                             <button
                               type="button"
-                              className="w-full text-left rounded-sm hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-ring"
+                              className="w-full rounded-sm text-left hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-ring"
                               onClick={() => {
                                 setBellOpen(false);
                                 router.push(n.href!);
