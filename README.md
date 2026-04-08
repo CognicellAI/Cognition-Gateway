@@ -1,5 +1,7 @@
 # Cognition Gateway
 
+This repository was used to validate the developer-director draft PR flow in the Cognition container.
+
 A self-hosted web interface for any [Cognition](https://github.com/CognicellAI/Cognition) server. The Gateway provides authentication, user management, streaming chat, and full configuration management — without touching the Cognition server itself.
 
 **Analogy:** OpenWebUI is to Ollama what Cognition Gateway is to Cognition Server.
