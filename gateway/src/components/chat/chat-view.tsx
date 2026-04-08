@@ -181,15 +181,9 @@ export function ChatView({ sessionId }: ChatViewProps) {
         <div className="mx-auto max-w-3xl space-y-4">
           {issueContext && <IssueWorkbenchHeader context={issueContext} />}
           {messagesLoading ? (
-            <div className="space-y-3">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className={`h-12 w-3/4 rounded-xl ${i % 2 === 0 ? "ml-auto" : ""}`} />
-              ))}
-            </div>
+            <LoadingState />
           ) : messagesError ? (
-            <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              {messagesError}
-            </div>
+            <ErrorState message={messagesError} onRetry={() => void window.location.reload()} />
           ) : messages.length === 0 && !isStreaming ? (
             <EmptyState agentName={selectedAgent} />
           ) : (
@@ -431,6 +425,30 @@ async function reconstructMessagesFromActivity(sessionId: string): Promise<Messa
   }
 
   return messages;
+}
+
+function LoadingState() {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <Skeleton key={i} className={`h-12 w-3/4 rounded-xl ${i % 2 === 0 ? "ml-auto" : ""}`} />
+      ))}
+    </div>
+  );
+}
+
+function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+      <div className="flex items-start gap-3">
+        <span className="flex-1">{message}</span>
+        <Button variant="ghost" size="sm" className="h-7 shrink-0 gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/20" onClick={onRetry}>
+          <RefreshCwIcon className="h-3.5 w-3.5" />
+          Retry
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 function EmptyState({ agentName }: { agentName: string }) {
