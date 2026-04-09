@@ -28,19 +28,28 @@ interface WsNotification {
   href?: string;
 }
 
+function getNotificationPayloadHref(payload: Record<string, unknown>): string | undefined {
+  const sessionId = payload.sessionId;
+  if (typeof sessionId === "string" && sessionId.length > 0) {
+    return `/chat/${sessionId}`;
+  }
+
+  const route = payload.route;
+  if (typeof route === "string" && route.length > 0) {
+    return route;
+  }
+
+  return undefined;
+}
+
 const WS_EVENT_LABELS: Record<string, (payload: Record<string, unknown>) => string> = {
   "cron.run.complete": (p) => `Cron job finished: ${String(p.jobName ?? p.jobId ?? "unknown")}`,
   "cron.run.failed": (p) => `Cron job failed: ${String(p.jobName ?? p.jobId ?? "unknown")}`,
   "webhook.invoked": (p) => `Webhook triggered: ${String(p.path ?? p.webhookId ?? "unknown")}`,
 };
 
-function getNotificationHref(payload: Record<string, unknown>): string {
-  const sessionId = payload.sessionId;
-  if (typeof sessionId === "string" && sessionId.length > 0) {
-    return `/chat/${sessionId}`;
-  }
-
-  return "/activity";
+function getNotificationHref(payload: Record<string, unknown>): string | undefined {
+  return getNotificationPayloadHref(payload);
 }
 
 export function AppShell({ children, role }: AppShellProps) {

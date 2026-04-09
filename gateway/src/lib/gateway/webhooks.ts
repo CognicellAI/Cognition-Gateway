@@ -516,6 +516,14 @@ async function processWebhookInBackground(
       invocationId: dispatchRunId,
       status: "success",
       sessionId,
+      route: sessionId ? `/chat/${sessionId}` : "/activity",
+      sourceType: "webhook",
+      sourceId: webhook.id,
+      metadata: {
+        ...(metadataLookup ?? {}),
+        ...(dispatchRule ? { dispatchRuleId: dispatchRule.id } : {}),
+        contextKey: effectiveContextKey,
+      },
     });
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
