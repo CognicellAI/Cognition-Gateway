@@ -40,13 +40,12 @@ function getNotificationHref(payload: Record<string, unknown>): string | undefin
     return `/chat/${sessionId}`;
   }
 
-  const webhookId = payload.webhookId;
-  if (typeof webhookId === "string" && webhookId.length > 0) {
+  const sourceType = payload.sourceType;
+  if (sourceType === "webhook" || payload.webhookId || payload.invocationId) {
     return "/webhooks";
   }
 
-  const cronJobId = payload.cronJobId;
-  if (typeof cronJobId === "string" && cronJobId.length > 0) {
+  if (sourceType === "cron" || payload.cronJobId) {
     return "/cron";
   }
 
