@@ -1,65 +1,92 @@
-import Image from "next/image";
+const notifications = [
+  {
+    id: "notif-1",
+    title: "Session completed",
+    message: "Background run finished successfully.",
+    sessionId: "session-123",
+    href: "/chat/session-123",
+    timestamp: "2m ago",
+    unread: true,
+  },
+  {
+    id: "notif-2",
+    title: "Trigger requires review",
+    message: "A scheduled trigger needs manual approval.",
+    href: "/admin/triggers",
+    timestamp: "12m ago",
+    unread: true,
+  },
+  {
+    id: "notif-3",
+    title: "Recent activity",
+    message: "A new event was added to the notification history.",
+    href: "/admin/triggers",
+    timestamp: "1h ago",
+    unread: false,
+  },
+];
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <main className="min-h-screen bg-zinc-50 px-6 py-10 text-zinc-950 dark:bg-zinc-950 dark:text-zinc-50">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+        <header className="space-y-2">
+          <p className="text-sm font-medium uppercase tracking-[0.2em] text-zinc-500">
+            Cognition Gateway
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+          <h1 className="text-3xl font-semibold tracking-tight">
+            Notification bell deep-link preview
+          </h1>
+          <p className="max-w-2xl text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+            Notifications with a sessionId route directly to the related
+            session. Notifications without a session fall back to the trigger
+            management surface.
+          </p>
+        </header>
+
+        <section className="rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
+            <div>
+              <h2 className="text-base font-medium">Notifications</h2>
+              <p className="text-sm text-zinc-500">3 recent events</p>
+            </div>
+            <span className="rounded-full bg-zinc-900 px-3 py-1 text-xs font-medium text-white dark:bg-zinc-100 dark:text-zinc-950">
+              2 unread
+            </span>
+          </div>
+
+          <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
+            {notifications.map((notification) => (
+              <li key={notification.id} className="p-5 transition hover:bg-zinc-50 dark:hover:bg-zinc-950/60">
+                <a
+                  className="block rounded-xl focus:outline-none focus:ring-2 focus:ring-zinc-400 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900"
+                  href={notification.href}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-medium">{notification.title}</h3>
+                        {notification.unread ? (
+                          <span className="h-2.5 w-2.5 rounded-full bg-sky-500" />
+                        ) : null}
+                      </div>
+                      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                        {notification.message}
+                      </p>
+                      <p className="text-xs text-zinc-500">
+                        {notification.sessionId
+                          ? `Session: ${notification.sessionId}`
+                          : "No session attached"}
+                      </p>
+                    </div>
+                    <span className="text-xs text-zinc-500">{notification.timestamp}</span>
+                  </div>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
+    </main>
   );
 }
