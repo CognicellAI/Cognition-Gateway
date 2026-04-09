@@ -34,23 +34,13 @@ const WS_EVENT_LABELS: Record<string, (payload: Record<string, unknown>) => stri
   "webhook.invoked": (p) => `Webhook triggered: ${String(p.path ?? p.webhookId ?? "unknown")}`,
 };
 
-function getNotificationHref(payload: Record<string, unknown>): string | undefined {
+function getNotificationHref(payload: Record<string, unknown>): string {
   const sessionId = payload.sessionId;
   if (typeof sessionId === "string" && sessionId.length > 0) {
     return `/chat/${sessionId}`;
   }
 
-  const webhookId = payload.webhookId;
-  if (typeof webhookId === "string" && webhookId.length > 0) {
-    return "/webhooks";
-  }
-
-  const cronJobId = payload.cronJobId;
-  if (typeof cronJobId === "string" && cronJobId.length > 0) {
-    return "/cron";
-  }
-
-  return undefined;
+  return "/activity";
 }
 
 export function AppShell({ children, role }: AppShellProps) {
